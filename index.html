@@ -806,6 +806,10 @@
                 max-height: calc(100vh - 1rem);
             }
             
+            .ai-coach-chat-area {
+                max-height: calc(100vh - 180px);
+            }
+            
             .ai-coach-header-premium {
                 padding: 0.75rem 1rem;
                 flex-shrink: 0;
@@ -1181,6 +1185,7 @@
             flex-shrink: 0;
             position: relative;
             z-index: 10;
+            min-height: 80px;
         }
         
         .ai-coach-chat-area {
@@ -1188,6 +1193,7 @@
             min-height: 0;
             overflow-y: auto;
             position: relative;
+            max-height: calc(100vh - 200px);
         }
         
         /* Prevent Text Overflow */
@@ -1335,7 +1341,7 @@
     <!-- AI Coach Modal -->
     <div id="aiCoachModal" class="fixed inset-0 hidden ai-coach-modal-premium" style="z-index: 9999;">
         <div class="flex items-center justify-center min-h-screen p-2 sm:p-4">
-            <div class="ai-coach-content-premium rounded-2xl w-full max-w-2xl h-[500px] sm:h-[600px] lg:h-[700px] flex flex-col overflow-hidden" style="display: flex; flex-direction: column;">
+            <div class="ai-coach-content-premium rounded-2xl w-full max-w-2xl h-[80vh] sm:h-[85vh] lg:h-[80vh] max-h-[700px] flex flex-col overflow-hidden" style="display: flex; flex-direction: column;">
                 <!-- AI Coach Header -->
                 <div class="ai-coach-header-premium text-white p-4 sm:p-6 flex items-center justify-between relative">
                     <div class="flex items-center min-w-0 flex-1">
@@ -3024,13 +3030,19 @@
             // Ensure input is visible and focused
             setTimeout(() => {
                 const chatInput = document.getElementById('chatInput');
+                const chatMessages = document.getElementById('chatMessages');
                 if (chatInput) {
                     chatInput.focus();
+                    // Scroll chat to bottom to show input area
+                    if (chatMessages) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                    // Scroll input into view
                     chatInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 }
             }, 100);
             
-            updateAIStatus('online', translations[currentLanguage].readyToHelp);
+            updateAIStatus('offline', translations[currentLanguage].readyToHelp);
             
             // Test API connection
             testAPIConnection();
@@ -3365,104 +3377,55 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
 
     </script>
 
-    <!-- Premium Footer -->
-    <footer class="premium-footer">
+    <!-- Professional Footer -->
+    <footer class="professional-footer">
         <div class="footer-container">
-            <!-- Main Footer Content -->
-            <div class="footer-main">
-                <!-- Company Info -->
-                <div class="footer-section">
+            <div class="footer-content">
+                <!-- Brand & Navigation -->
+                <div class="footer-brand">
                     <div class="footer-logo">
                         <i data-lucide="truck" class="footer-icon"></i>
-                        <h3>FleetTrack Pro</h3>
+                        <span class="footer-title">FleetTrack Pro</span>
                     </div>
-                    <p class="footer-description">
-                        Advanced fleet management dashboard for modern businesses. 
-                        Monitor, analyze, and optimize your vehicle fleet with real-time insights.
-                    </p>
-                    <div class="footer-social">
+                    <p class="footer-tagline">Advanced Fleet Management Dashboard</p>
+                </div>
+
+                <!-- Quick Navigation -->
+                <div class="footer-nav">
+                    <a href="#dashboard" onclick="showPage('dashboard')" class="nav-link">Dashboard</a>
+                    <a href="#map" onclick="showPage('map')" class="nav-link">Map</a>
+                    <a href="#analytics" onclick="showPage('analytics')" class="nav-link">Analytics</a>
+                    <a href="#maintenance" onclick="showPage('maintenance')" class="nav-link">Maintenance</a>
+                    <a href="#reports" onclick="showPage('reports')" class="nav-link">Reports</a>
+                </div>
+
+                <!-- Contact & Social -->
+                <div class="footer-contact">
+                    <div class="contact-item">
+                        <i data-lucide="mail"></i>
+                        <span>support@fleettrackpro.com</span>
+                    </div>
+                    <div class="social-links">
                         <a href="#" class="social-link" title="LinkedIn">
                             <i data-lucide="linkedin"></i>
-                        </a>
-                        <a href="#" class="social-link" title="Twitter">
-                            <i data-lucide="twitter"></i>
                         </a>
                         <a href="#" class="social-link" title="GitHub">
                             <i data-lucide="github"></i>
                         </a>
-                        <a href="#" class="social-link" title="Email">
-                            <i data-lucide="mail"></i>
+                        <a href="#" class="social-link" title="Twitter">
+                            <i data-lucide="twitter"></i>
                         </a>
-                    </div>
-                </div>
-
-                <!-- Quick Links -->
-                <div class="footer-section">
-                    <h4>Quick Links</h4>
-                    <ul class="footer-links">
-                        <li><a href="#dashboard" onclick="showPage('dashboard')">Dashboard</a></li>
-                        <li><a href="#map" onclick="showPage('map')">Map View</a></li>
-                        <li><a href="#analytics" onclick="showPage('analytics')">Analytics</a></li>
-                        <li><a href="#maintenance" onclick="showPage('maintenance')">Maintenance</a></li>
-                        <li><a href="#reports" onclick="showPage('reports')">Reports</a></li>
-                    </ul>
-                </div>
-
-                <!-- Features -->
-                <div class="footer-section">
-                    <h4>Features</h4>
-                    <ul class="footer-links">
-                        <li><a href="#">Real-time Tracking</a></li>
-                        <li><a href="#">Route Optimization</a></li>
-                        <li><a href="#">Fuel Monitoring</a></li>
-                        <li><a href="#">Maintenance Alerts</a></li>
-                        <li><a href="#">Performance Analytics</a></li>
-                    </ul>
-                </div>
-
-                <!-- Support -->
-                <div class="footer-section">
-                    <h4>Support</h4>
-                    <ul class="footer-links">
-                        <li><a href="#">Documentation</a></li>
-                        <li><a href="#">API Reference</a></li>
-                        <li><a href="#">Help Center</a></li>
-                        <li><a href="#">Contact Support</a></li>
-                        <li><a href="#">System Status</a></li>
-                    </ul>
-                </div>
-
-                <!-- Contact Info -->
-                <div class="footer-section">
-                    <h4>Contact</h4>
-                    <div class="contact-info">
-                        <div class="contact-item">
-                            <i data-lucide="phone"></i>
-                            <span>+1 (555) 123-4567</span>
-                        </div>
-                        <div class="contact-item">
-                            <i data-lucide="mail"></i>
-                            <span>support@fleettrackpro.com</span>
-                        </div>
-                        <div class="contact-item">
-                            <i data-lucide="map-pin"></i>
-                            <span>123 Fleet Street, Tech City, TC 12345</span>
-                        </div>
                     </div>
                 </div>
             </div>
 
             <!-- Footer Bottom -->
             <div class="footer-bottom">
-                <div class="footer-bottom-content">
-                    <div class="footer-copyright">
-                        <p>&copy; 2024 FleetTrack Pro. All rights reserved.</p>
-                    </div>
-                    <div class="footer-legal">
-                        <a href="#">Privacy Policy</a>
-                        <a href="#">Terms of Service</a>
-                        <a href="#">Cookie Policy</a>
-                    </div>
+                <p class="copyright">&copy; 2024 FleetTrack Pro. All rights reserved.</p>
+                <div class="legal-links">
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                    <a href="#">Support</a>
                 </div>
             </div>
         </div>
