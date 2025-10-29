@@ -1,0 +1,3464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Tracking Dashboard</title>
+    <!-- 
+    SECURITY NOTE: 
+    - Replace 'YOUR_OPENAI_API_KEY_HERE' with your actual OpenAI API key
+    - Never commit real API keys to version control
+    - This file is safe to push to GitHub with the placeholder
+    -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <style>
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .status-card {
+            transition: all 0.3s ease;
+        }
+        .status-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .counter {
+            font-variant-numeric: tabular-nums;
+        }
+        .map-container {
+            height: 400px;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .alert-badge {
+            animation: pulse 2s infinite;
+        }
+        .page {
+            display: none;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .page.active {
+            display: block;
+        }
+        .nav-item {
+            transition: all 0.3s ease;
+        }
+        .nav-item:hover {
+            background-color: rgba(59, 130, 246, 0.1);
+            transform: translateX(4px);
+        }
+        .nav-item.active {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #3B82F6;
+            border-right: 3px solid #3B82F6;
+        }
+        .premium-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .premium-card-2 {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .premium-card-3 {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        .premium-card-4 {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            color: white;
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        .floating-action {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .theme-dark {
+            background-color: #1a1a1a;
+            color: #e5e5e5;
+        }
+        .theme-dark .bg-white {
+            background-color: #2d2d2d !important;
+            color: #e5e5e5;
+        }
+        .theme-dark .text-gray-900 {
+            color: #e5e5e5 !important;
+        }
+        .theme-dark .text-gray-600 {
+            color: #a0a0a0 !important;
+        }
+        .theme-dark .border-gray-200 {
+            border-color: #404040 !important;
+        }
+        
+        /* Responsive Design */
+        .mobile-menu {
+            display: none;
+        }
+        
+        .mobile-menu.active {
+            display: block;
+        }
+        
+        .sidebar-mobile {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 280px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            z-index: 50;
+            overflow-y: auto;
+        }
+        
+        .sidebar-mobile.open {
+            transform: translateX(0);
+        }
+        
+        .mobile-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+        
+        .mobile-overlay.active {
+            display: block;
+        }
+        
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        @media (min-width: 640px) {
+            .responsive-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .responsive-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (min-width: 1280px) {
+            .responsive-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+        
+        .responsive-chart {
+            height: 250px;
+        }
+        
+        @media (min-width: 768px) {
+            .responsive-chart {
+                height: 300px;
+            }
+        }
+        
+        .responsive-map {
+            height: 300px;
+        }
+        
+        @media (min-width: 768px) {
+            .responsive-map {
+                height: 400px;
+            }
+        }
+        
+        .responsive-table {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .responsive-table table {
+            min-width: 600px;
+        }
+        
+        .mobile-nav-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            color: white;
+            text-decoration: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-nav-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .mobile-nav-item.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+        
+        .floating-action-btn {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 50;
+        }
+        
+        @media (min-width: 768px) {
+            .floating-action-btn {
+                bottom: 2rem;
+                right: 2rem;
+            }
+        }
+        
+        .status-card-mobile {
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        @media (min-width: 640px) {
+            .status-card-mobile {
+                padding: 1.5rem;
+                margin-bottom: 0;
+            }
+        }
+        
+        .premium-card-mobile {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        @media (min-width: 640px) {
+            .premium-card-mobile {
+                padding: 1.5rem;
+                margin-bottom: 0;
+            }
+        }
+        
+        .chart-container-mobile {
+            position: relative;
+            height: 250px;
+            margin: 1rem 0;
+        }
+        
+        @media (min-width: 768px) {
+            .chart-container-mobile {
+                height: 300px;
+                margin: 0;
+            }
+        }
+        
+        .map-container-mobile {
+            height: 300px;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        @media (min-width: 768px) {
+            .map-container-mobile {
+                height: 400px;
+                margin: 0;
+            }
+        }
+        
+        .main-content-mobile {
+            padding: 1rem;
+        }
+        
+        @media (min-width: 768px) {
+            .main-content-mobile {
+                padding: 1.5rem;
+            }
+        }
+        
+        .sidebar-desktop {
+            display: none;
+        }
+        
+        @media (min-width: 1024px) {
+            .sidebar-desktop {
+                display: block;
+            }
+        }
+        
+        .mobile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        @media (min-width: 1024px) {
+            .mobile-header {
+                display: none;
+            }
+        }
+        
+        .hamburger {
+            display: block;
+            cursor: pointer;
+            padding: 0.5rem;
+        }
+        
+        @media (min-width: 1024px) {
+            .hamburger {
+                display: none;
+            }
+        }
+        
+        .page-mobile {
+            display: none;
+            padding: 1rem;
+        }
+        
+        .page-mobile.active {
+            display: block;
+        }
+        
+        @media (min-width: 1024px) {
+            .page-mobile {
+                display: none;
+            }
+        }
+        
+        .page-desktop {
+            display: none;
+        }
+        
+        @media (min-width: 1024px) {
+            .page-desktop {
+                display: block;
+            }
+        }
+        
+        .stats-grid-mobile {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (min-width: 640px) {
+            .stats-grid-mobile {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .stats-grid-mobile {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        .analytics-grid-mobile {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (min-width: 768px) {
+            .analytics-grid-mobile {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        .maintenance-grid-mobile {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (min-width: 640px) {
+            .maintenance-grid-mobile {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .maintenance-grid-mobile {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        .reports-grid-mobile {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        @media (min-width: 768px) {
+            .reports-grid-mobile {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .reports-grid-mobile {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        .mobile-nav-toggle {
+            display: block;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        @media (min-width: 1024px) {
+            .mobile-nav-toggle {
+                display: none;
+            }
+        }
+        
+        .mobile-close {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        
+        /* AI Coach Modal Styles */
+        .ai-coach-modal {
+            backdrop-filter: blur(4px);
+        }
+        
+        .chat-message {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .typing-indicator {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        
+        .ai-coach-input:focus {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .ai-coach-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .ai-coach-send-btn:disabled:hover {
+            background-color: #3b82f6;
+        }
+        
+        .chat-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e0 #f7fafc;
+        }
+        
+        .chat-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .chat-scroll::-webkit-scrollbar-track {
+            background: #f7fafc;
+        }
+        
+        .chat-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 3px;
+        }
+        
+        .chat-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a0aec0;
+        }
+        
+        /* Premium AI Coach Styles */
+        .ai-coach-premium {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .ai-coach-header-premium {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ai-coach-header-premium::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+            animation: shimmer 3s infinite;
+        }
+        
+        .ai-coach-avatar {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .ai-coach-status {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #10b981;
+            border: 2px solid white;
+            animation: pulse-ring 2s infinite;
+        }
+        
+        .ai-coach-status.offline {
+            background: #f59e0b;
+        }
+        
+        .chat-message-premium {
+            animation: slideInUp 0.4s ease-out;
+            transform-origin: bottom;
+        }
+        
+        .user-message-premium {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            border-radius: 18px 18px 4px 18px;
+        }
+        
+        .ai-message-premium {
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 18px 18px 18px 4px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .typing-indicator-premium {
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 18px 18px 18px 4px;
+            border: 1px solid rgba(102, 126, 234, 0.1);
+        }
+        
+        .typing-dot {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            animation: typingBounce 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        .ai-coach-input-premium {
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            border: 2px solid transparent;
+            background-clip: padding-box;
+            position: relative;
+        }
+        
+        .ai-coach-input-premium:focus {
+            border: 2px solid transparent;
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(135deg, #667eea, #764ba2) border-box;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.2);
+        }
+        
+        .ai-coach-send-premium {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ai-coach-send-premium:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+        }
+        
+        .ai-coach-send-premium:active {
+            transform: translateY(0);
+        }
+        
+        .ai-coach-send-premium::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .ai-coach-send-premium:hover::before {
+            left: 100%;
+        }
+        
+        .quick-action-premium {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .quick-action-premium:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.2);
+        }
+        
+        .ai-coach-modal-premium {
+            backdrop-filter: blur(20px);
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 9999 !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+        }
+        
+        .ai-coach-content-premium {
+            position: relative;
+            z-index: 10000;
+            background: linear-gradient(135deg, #ffffff, #f8fafc);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
+        }
+        
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+        
+        .ai-coach-glow {
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        .ai-coach-pulse {
+            animation: aiPulse 2s infinite;
+        }
+        
+        @keyframes aiPulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0);
+            }
+        }
+        
+        /* Responsive Language Selector */
+        .language-selector {
+            min-width: 80px;
+        }
+        
+        .language-selector select {
+            padding-right: 2rem;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
+        .language-selector::after {
+            content: '▼';
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            pointer-events: none;
+            color: #6b7280;
+            font-size: 0.75rem;
+        }
+        
+        /* Mobile Header Responsive */
+        @media (max-width: 640px) {
+            .mobile-header {
+                padding: 0.75rem 1rem;
+            }
+            
+            .mobile-header h1 {
+                font-size: 0.875rem;
+            }
+            
+            .language-selector select {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+            }
+        }
+        
+        /* Desktop Header Responsive */
+        @media (max-width: 1024px) {
+            .page-desktop .flex.items-center.space-x-2 {
+                space-x: 0.5rem;
+            }
+            
+            .page-desktop .hidden.sm\\:block {
+                display: none;
+            }
+        }
+        
+        /* AI Coach Modal Responsive */
+        @media (max-width: 640px) {
+            .ai-coach-content-premium {
+                margin: 0.5rem;
+                height: calc(100vh - 1rem);
+                max-height: calc(100vh - 1rem);
+            }
+            
+            .ai-coach-header-premium {
+                padding: 0.75rem 1rem;
+                flex-shrink: 0;
+            }
+            
+            .ai-coach-avatar {
+                width: 2rem;
+                height: 2rem;
+                flex-shrink: 0;
+            }
+            
+            .ai-coach-avatar i {
+                width: 1rem;
+                height: 1rem;
+            }
+            
+            .chat-message-premium {
+                margin-bottom: 0.75rem;
+            }
+            
+            .ai-message-premium,
+            .user-message-premium {
+                max-width: 85%;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            .quick-action-premium {
+                font-size: 0.75rem;
+                padding: 0.5rem;
+                margin-bottom: 0.5rem;
+            }
+            
+            /* Ensure input area is always visible */
+            #chatMessages {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+            
+            .ai-coach-input-premium {
+                flex-shrink: 0;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .ai-coach-content-premium {
+                margin: 0.25rem;
+                height: calc(100vh - 0.5rem);
+                max-height: calc(100vh - 0.5rem);
+            }
+            
+            .ai-coach-header-premium {
+                padding: 0.5rem 0.75rem;
+                flex-shrink: 0;
+            }
+            
+            .ai-coach-avatar {
+                width: 1.75rem;
+                height: 1.75rem;
+                flex-shrink: 0;
+            }
+            
+            .ai-coach-avatar i {
+                width: 0.875rem;
+                height: 0.875rem;
+            }
+            
+            .quick-action-premium {
+                font-size: 0.6875rem;
+                padding: 0.375rem;
+                margin-bottom: 0.375rem;
+            }
+            
+            .ai-coach-input-premium {
+                font-size: 0.875rem;
+                padding: 0.5rem;
+                flex-shrink: 0;
+            }
+            
+            .ai-coach-send-premium {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.75rem;
+            }
+            
+            /* Ensure input area is always visible */
+            #chatMessages {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+        }
+        
+        @media (max-width: 360px) {
+            .ai-coach-content-premium {
+                margin: 0.125rem;
+                height: calc(100vh - 0.25rem);
+                max-height: calc(100vh - 0.25rem);
+            }
+            
+            .ai-coach-header-premium h3 {
+                font-size: 0.875rem;
+            }
+            
+            .ai-coach-header-premium p {
+                font-size: 0.6875rem;
+            }
+            
+            /* Ensure input area is always visible */
+            #chatMessages {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+            
+            .ai-coach-input-premium {
+                flex-shrink: 0;
+            }
+        }
+        
+        /* Language Selector Hover Effects */
+        .language-selector select:hover {
+            border-color: #3b82f6;
+        }
+        
+        .language-selector select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Global Overflow Prevention */
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            overflow-x: hidden;
+            max-width: 100vw;
+        }
+        
+        .container, .main-content-mobile {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        /* Responsive Grid System */
+        .responsive-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            width: 100%;
+        }
+        
+        @media (max-width: 640px) {
+            .responsive-grid {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+        }
+        
+        @media (min-width: 641px) and (max-width: 1024px) {
+            .responsive-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1025px) {
+            .responsive-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        @media (min-width: 1280px) {
+            .responsive-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+        
+        /* Responsive Tables */
+        .responsive-table {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .responsive-table table {
+            min-width: 100%;
+            table-layout: fixed;
+        }
+        
+        .responsive-table th,
+        .responsive-table td {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            padding: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .responsive-table th,
+            .responsive-table td {
+                padding: 0.25rem;
+                font-size: 0.875rem;
+            }
+            
+            .responsive-table th:nth-child(n+4),
+            .responsive-table td:nth-child(n+4) {
+                display: none;
+            }
+        }
+        
+        /* Responsive Charts */
+        .responsive-chart {
+            width: 100%;
+            height: 250px;
+            position: relative;
+        }
+        
+        @media (max-width: 640px) {
+            .responsive-chart {
+                height: 200px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .responsive-chart {
+                height: 300px;
+            }
+        }
+        
+        /* Responsive Maps */
+        .responsive-map {
+            width: 100%;
+            height: 300px;
+            min-height: 200px;
+        }
+        
+        @media (max-width: 640px) {
+            .responsive-map {
+                height: 250px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .responsive-map {
+                height: 400px;
+            }
+        }
+        
+        /* Text Responsive */
+        .text-responsive {
+            font-size: clamp(0.875rem, 2.5vw, 1rem);
+            line-height: 1.5;
+        }
+        
+        .text-responsive-lg {
+            font-size: clamp(1rem, 3vw, 1.25rem);
+            line-height: 1.4;
+        }
+        
+        .text-responsive-xl {
+            font-size: clamp(1.125rem, 4vw, 1.5rem);
+            line-height: 1.3;
+        }
+        
+        /* Button Responsive */
+        .btn-responsive {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+            white-space: nowrap;
+        }
+        
+        @media (max-width: 640px) {
+            .btn-responsive {
+                padding: 0.375rem 0.75rem;
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Card Responsive */
+        .card-responsive {
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        @media (max-width: 640px) {
+            .card-responsive {
+                padding: 0.75rem;
+                margin-bottom: 0.75rem;
+            }
+        }
+        
+        /* Flex Responsive */
+        .flex-responsive {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        
+        @media (max-width: 640px) {
+            .flex-responsive {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+        
+        /* Status Cards Responsive */
+        .status-card {
+            min-width: 0;
+            flex: 1;
+            max-width: 100%;
+        }
+        
+        .status-card p {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Sidebar Responsive */
+        .sidebar-mobile {
+            width: 100vw;
+            max-width: 320px;
+        }
+        
+        .sidebar-desktop {
+            min-width: 0;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 1024px) {
+            .sidebar-desktop {
+                display: none;
+            }
+        }
+        
+        /* Main Content Responsive */
+        .main-content-mobile {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* Header Responsive */
+        .mobile-header {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        .page-desktop {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+        }
+        
+        /* AI Coach Responsive */
+        .ai-coach-content-premium {
+            max-width: calc(100vw - 2rem);
+            width: 100%;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+        
+        @media (max-width: 640px) {
+            .ai-coach-content-premium {
+                max-width: calc(100vw - 1rem);
+            }
+        }
+        
+        /* Ensure AI Coach input is always visible */
+        .ai-coach-input-area {
+            flex-shrink: 0;
+            position: relative;
+            z-index: 10;
+        }
+        
+        .ai-coach-chat-area {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        /* Prevent Text Overflow */
+        .text-ellipsis {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .text-wrap {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+        
+        /* Image Responsive */
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Form Responsive */
+        input, select, textarea {
+            max-width: 100%;
+            width: 100%;
+        }
+        
+        /* Chart Container Responsive */
+        .chart-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+        }
+        
+        .chart-container canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Analytics Page Responsive */
+        .analytics-chart {
+            height: 300px;
+            min-height: 250px;
+        }
+        
+        @media (max-width: 768px) {
+            .analytics-chart {
+                height: 250px;
+                min-height: 200px;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .analytics-chart {
+                height: 200px;
+                min-height: 150px;
+            }
+        }
+        
+        /* Analytics Cards Responsive */
+        .analytics-card {
+            min-height: 120px;
+        }
+        
+        @media (max-width: 640px) {
+            .analytics-card {
+                min-height: 100px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- Mobile Header -->
+    <div class="mobile-header">
+        <div class="flex items-center justify-between w-full">
+            <div class="flex items-center">
+                <button class="mobile-nav-toggle" onclick="toggleMobileMenu()">
+                    <i data-lucide="menu" class="h-6 w-6"></i>
+                </button>
+                <div class="flex items-center ml-3 sm:ml-4">
+                    <i data-lucide="truck" class="h-5 w-5 sm:h-6 sm:w-6 text-white mr-2"></i>
+                    <h1 class="text-base sm:text-lg font-semibold text-white">Fleet Dashboard</h1>
+                </div>
+            </div>
+            <div class="flex items-center space-x-1 sm:space-x-2">
+                <!-- Language Selector Mobile -->
+                <div class="relative language-selector">
+                    <select id="languageSelectMobile" onchange="changeLanguage(this.value)" class="bg-transparent text-white text-xs border border-white border-opacity-30 rounded px-2 py-1 focus:outline-none">
+                        <option value="en">🇺🇸 EN</option>
+                        <option value="es">🇪🇸 ES</option>
+                        <option value="fr">🇫🇷 FR</option>
+                        <option value="de">🇩🇪 DE</option>
+                        <option value="zh">🇨🇳 中文</option>
+                    </select>
+                </div>
+                <button onclick="openAICoach()" class="p-2 text-white hover:text-blue-200 transition-colors" title="AI Coach">
+                    <i data-lucide="bot" class="h-4 w-4 sm:h-5 sm:w-5"></i>
+                </button>
+                <button onclick="refreshData()" class="p-2 text-white hover:text-blue-200 transition-colors" title="Refresh">
+                    <i data-lucide="refresh-cw" class="h-4 w-4 sm:h-5 sm:w-5"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Desktop Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200 page-desktop">
+        <div class="px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <i data-lucide="truck" class="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mr-2 sm:mr-3"></i>
+                    <h1 class="text-lg sm:text-xl font-semibold text-gray-900">Fleet Tracking Dashboard</h1>
+                </div>
+                <div class="flex items-center space-x-2 sm:space-x-4">
+                    <!-- Language Selector Desktop -->
+                    <div class="relative language-selector">
+                        <select id="languageSelectDesktop" onchange="changeLanguage(this.value)" class="bg-white text-gray-700 text-sm border border-gray-300 rounded-lg px-3 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="en">🇺🇸 English</option>
+                            <option value="es">🇪🇸 Español</option>
+                            <option value="fr">🇫🇷 Français</option>
+                            <option value="de">🇩🇪 Deutsch</option>
+                            <option value="zh">🇨🇳 中文</option>
+                        </select>
+                    </div>
+                    <button onclick="openAICoach()" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="AI Coach">
+                        <i data-lucide="bot" class="h-5 w-5"></i>
+                    </button>
+                    <button onclick="toggleTheme()" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Toggle Theme">
+                        <i data-lucide="moon" class="h-5 w-5" id="themeIcon"></i>
+                    </button>
+                    <div class="hidden sm:block text-sm text-gray-500">
+                        Last updated: <span id="lastUpdated" class="font-medium text-gray-900"></span>
+                    </div>
+                    <button onclick="refreshData()" class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Refresh Data">
+                        <i data-lucide="refresh-cw" class="h-5 w-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobileMenu()"></div>
+
+    <!-- AI Coach Modal -->
+    <div id="aiCoachModal" class="fixed inset-0 hidden ai-coach-modal-premium" style="z-index: 9999;">
+        <div class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+            <div class="ai-coach-content-premium rounded-2xl w-full max-w-2xl h-[500px] sm:h-[600px] lg:h-[700px] flex flex-col overflow-hidden" style="display: flex; flex-direction: column;">
+                <!-- AI Coach Header -->
+                <div class="ai-coach-header-premium text-white p-4 sm:p-6 flex items-center justify-between relative">
+                    <div class="flex items-center min-w-0 flex-1">
+                        <div class="ai-coach-avatar w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center mr-3 sm:mr-4 relative flex-shrink-0">
+                            <i data-lucide="bot" class="h-5 w-5 sm:h-7 sm:w-7 text-white"></i>
+                            <div id="aiStatus" class="ai-coach-status"></div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <h3 class="text-lg sm:text-xl font-bold truncate">AI Fleet Coach</h3>
+                            <p class="text-blue-100 text-xs sm:text-sm truncate">Your intelligent fleet management assistant</p>
+                            <div class="flex items-center mt-1">
+                                <div class="w-2 h-2 bg-green-400 rounded-full mr-2 flex-shrink-0"></div>
+                                <span class="text-xs text-blue-200 truncate" id="connectionStatus">Online</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onclick="closeAICoach()" class="text-white hover:text-blue-200 transition-colors p-2 rounded-full hover:bg-white hover:bg-opacity-20 flex-shrink-0 ml-2">
+                        <i data-lucide="x" class="h-5 w-5 sm:h-6 sm:w-6"></i>
+                    </button>
+                </div>
+
+                <!-- Chat Messages Area -->
+                <div id="chatMessages" class="ai-coach-chat-area p-3 sm:p-6 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-gray-100 chat-scroll">
+                    <div class="flex items-start space-x-2 sm:space-x-3 chat-message-premium">
+                        <div class="ai-coach-avatar w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="bot" class="h-4 w-4 sm:h-5 sm:w-5 text-white"></i>
+                        </div>
+                        <div class="ai-message-premium p-3 sm:p-4 max-w-xs sm:max-w-sm">
+                            <p class="text-gray-800 font-medium text-sm sm:text-base">Hello! I'm your AI Fleet Coach. I can help you with:</p>
+                            <ul class="text-xs sm:text-sm text-gray-600 mt-2 sm:mt-3 space-y-1 sm:space-y-2">
+                                <li class="flex items-center"><span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0"></span>Fleet performance analysis</li>
+                                <li class="flex items-center"><span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>Maintenance recommendations</li>
+                                <li class="flex items-center"><span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-purple-500 rounded-full mr-2 flex-shrink-0"></span>Route optimization</li>
+                                <li class="flex items-center"><span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-orange-500 rounded-full mr-2 flex-shrink-0"></span>Cost reduction strategies</li>
+                                <li class="flex items-center"><span class="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-red-500 rounded-full mr-2 flex-shrink-0"></span>Driver safety insights</li>
+                            </ul>
+                            <p class="text-gray-800 mt-2 sm:mt-3 font-medium text-sm sm:text-base">What would you like to know about your fleet?</p>
+                            
+                            <!-- Quick Action Buttons -->
+                            <div class="mt-3 sm:mt-4 space-y-1 sm:space-y-2">
+                                <button onclick="askQuickQuestion('How can I improve fuel efficiency?')" class="quick-action-premium w-full text-left text-xs sm:text-sm p-2 sm:p-3 rounded-lg">
+                                    <div class="flex items-center">
+                                        <span class="text-base sm:text-lg mr-2">💡</span>
+                                        <span class="font-medium">How can I improve fuel efficiency?</span>
+                                    </div>
+                                </button>
+                                <button onclick="askQuickQuestion('Which vehicles need maintenance soon?')" class="quick-action-premium w-full text-left text-xs sm:text-sm p-2 sm:p-3 rounded-lg">
+                                    <div class="flex items-center">
+                                        <span class="text-base sm:text-lg mr-2">🔧</span>
+                                        <span class="font-medium">Which vehicles need maintenance soon?</span>
+                                    </div>
+                                </button>
+                                <button onclick="askQuickQuestion('How is my fleet performing overall?')" class="quick-action-premium w-full text-left text-xs sm:text-sm p-2 sm:p-3 rounded-lg">
+                                    <div class="flex items-center">
+                                        <span class="text-base sm:text-lg mr-2">📊</span>
+                                        <span class="font-medium">How is my fleet performing overall?</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Input Area -->
+                <div class="ai-coach-input-area p-3 sm:p-6 bg-white border-t border-gray-200">
+                    <div class="flex space-x-2 sm:space-x-3">
+                        <input 
+                            type="text" 
+                            id="chatInput" 
+                            placeholder="Ask me anything about your fleet..."
+                            class="ai-coach-input-premium flex-1 px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:outline-none text-sm sm:text-base"
+                            onkeypress="handleChatKeyPress(event)"
+                            style="min-height: 40px;"
+                        >
+                        <button 
+                            onclick="sendMessage()" 
+                            id="sendButton"
+                            class="ai-coach-send-premium text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl flex items-center space-x-1 sm:space-x-2 font-medium text-sm sm:text-base"
+                            style="min-height: 40px;"
+                        >
+                            <i data-lucide="send" class="h-3 w-3 sm:h-4 sm:w-4"></i>
+                            <span class="hidden sm:inline">Send</span>
+                        </button>
+                    </div>
+                    <div class="mt-2 sm:mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-gray-500 space-y-1 sm:space-y-0">
+                        <div class="flex items-center">
+                            <i data-lucide="info" class="h-3 w-3 mr-1 flex-shrink-0"></i>
+                            <span class="truncate">AI Coach can analyze your fleet data and provide insights</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-green-400 rounded-full mr-1 flex-shrink-0"></div>
+                            <span id="aiStatusText" class="truncate">Ready to help</span>
+                            <button onclick="testAPIConnection()" class="text-blue-500 hover:text-blue-700 underline text-xs">
+                                Test
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar -->
+    <aside class="sidebar-mobile" id="mobileSidebar">
+        <div class="p-6">
+            <button class="mobile-close" onclick="closeMobileMenu()">
+                <i data-lucide="x" class="h-6 w-6"></i>
+            </button>
+            <div class="mt-8">
+                <div class="text-white text-xs uppercase tracking-wider font-semibold mb-4">Navigation</div>
+                <div class="space-y-2">
+                    <a href="#" onclick="showPage('dashboard'); closeMobileMenu();" class="mobile-nav-item active">
+                        <i data-lucide="home" class="h-5 w-5 mr-4"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="#" onclick="showPage('map'); closeMobileMenu();" class="mobile-nav-item">
+                        <i data-lucide="map" class="h-5 w-5 mr-4"></i>
+                        <span>Map View</span>
+                    </a>
+                    <a href="#" onclick="showPage('analytics'); closeMobileMenu();" class="mobile-nav-item">
+                        <i data-lucide="bar-chart-3" class="h-5 w-5 mr-4"></i>
+                        <span>Analytics</span>
+                    </a>
+                    <a href="#" onclick="showPage('maintenance'); closeMobileMenu();" class="mobile-nav-item">
+                        <i data-lucide="wrench" class="h-5 w-5 mr-4"></i>
+                        <span>Maintenance</span>
+                    </a>
+                    <a href="#" onclick="showPage('reports'); closeMobileMenu();" class="mobile-nav-item">
+                        <i data-lucide="download" class="h-5 w-5 mr-4"></i>
+                        <span>Reports</span>
+                    </a>
+                </div>
+            </div>
+            
+            <div class="mt-8">
+                <div class="text-white text-xs uppercase tracking-wider font-semibold mb-4">Quick Stats</div>
+                <div class="space-y-3">
+                    <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100 text-sm">Active Vehicles</span>
+                            <span class="text-white font-bold">8</span>
+                        </div>
+                    </div>
+                    <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100 text-sm">Total Distance</span>
+                            <span class="text-white font-bold">12.4k km</span>
+                        </div>
+                    </div>
+                    <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-blue-100 text-sm">Efficiency</span>
+                            <span class="text-white font-bold">94.2%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="flex">
+        <!-- Desktop Sidebar -->
+        <aside class="w-64 bg-white shadow-sm min-h-screen sidebar-desktop">
+            <nav class="p-4">
+                <div class="space-y-2">
+                    <button onclick="showPage('dashboard')" class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-md active">
+                        <i data-lucide="home" class="h-4 w-4 mr-3"></i>
+                        Dashboard
+                    </button>
+                    <button onclick="showPage('map')" class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+                        <i data-lucide="map" class="h-4 w-4 mr-3"></i>
+                        Map View
+                    </button>
+                    <button onclick="showPage('analytics')" class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+                        <i data-lucide="bar-chart-3" class="h-4 w-4 mr-3"></i>
+                        Analytics
+                    </button>
+                    <button onclick="showPage('maintenance')" class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+                        <i data-lucide="wrench" class="h-4 w-4 mr-3"></i>
+                        Maintenance
+                    </button>
+                    <button onclick="showPage('reports')" class="nav-item w-full flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-md">
+                        <i data-lucide="download" class="h-4 w-4 mr-3"></i>
+                        Reports
+                    </button>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 main-content-mobile">
+            <!-- Dashboard Page -->
+            <div id="dashboard-page" class="page active">
+                <!-- Filters -->
+                <div class="mb-6 bg-white card-responsive rounded-lg shadow-sm">
+                    <div class="flex-responsive">
+                        <div class="flex-1 min-w-0">
+                            <label class="block text-sm font-medium text-gray-700 mb-1 text-wrap">Date Range</label>
+                            <select id="dateRange" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month" selected>This Month</option>
+                                <option value="quarter">This Quarter</option>
+                            </select>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <label class="block text-sm font-medium text-gray-700 mb-1 text-wrap">Vehicle</label>
+                            <select id="vehicleFilter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                                <option value="all">All Vehicles</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="applyFilters()" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors btn-responsive w-full sm:w-auto">
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Cards -->
+                <div class="responsive-grid mb-6">
+                    <div class="status-card premium-card p-4 sm:p-6 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-blue-100 text-xs sm:text-sm font-medium text-wrap">Moving</p>
+                                <p class="text-lg sm:text-2xl font-bold text-white counter text-ellipsis" id="movingCount">0</p>
+                            </div>
+                            <i data-lucide="play-circle" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-blue-100 bg-white bg-opacity-20 px-2 py-1 rounded-full text-wrap">+12% from yesterday</span>
+                        </div>
+                    </div>
+
+                    <div class="status-card premium-card-2 p-4 sm:p-6 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-pink-100 text-xs sm:text-sm font-medium text-wrap">Stopped</p>
+                                <p class="text-lg sm:text-2xl font-bold text-white counter text-ellipsis" id="stoppedCount">0</p>
+                            </div>
+                            <i data-lucide="pause-circle" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-pink-100 bg-white bg-opacity-20 px-2 py-1 rounded-full text-wrap">-5% from yesterday</span>
+                        </div>
+                    </div>
+
+                    <div class="status-card premium-card-3 p-4 sm:p-6 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-cyan-100 text-xs sm:text-sm font-medium text-wrap">Idle</p>
+                                <p class="text-lg sm:text-2xl font-bold text-white counter text-ellipsis" id="idleCount">0</p>
+                            </div>
+                            <i data-lucide="clock" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-cyan-100 bg-white bg-opacity-20 px-2 py-1 rounded-full text-wrap">+3% from yesterday</span>
+                        </div>
+                    </div>
+
+                    <div class="status-card bg-white p-4 sm:p-6 rounded-lg shadow-sm border-l-4 border-gray-500">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-gray-600 text-wrap">No Connection</p>
+                                <p class="text-lg sm:text-2xl font-bold text-gray-900 counter text-ellipsis" id="noConnectionCount">0</p>
+                            </div>
+                            <i data-lucide="wifi-off" class="h-6 w-6 sm:h-8 sm:w-8 text-gray-500 flex-shrink-0"></i>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full text-wrap">-2% from yesterday</span>
+                        </div>
+                    </div>
+
+                    <div class="status-card premium-card-4 p-4 sm:p-6 rounded-lg shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-green-100 text-xs sm:text-sm font-medium text-wrap">Battery Disconnected</p>
+                                <p class="text-lg sm:text-2xl font-bold text-white counter text-ellipsis" id="batteryCount">0</p>
+                            </div>
+                            <i data-lucide="battery" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                        <div class="mt-2">
+                            <span class="text-xs text-green-100 bg-white bg-opacity-20 px-2 py-1 rounded-full text-wrap">+1% from yesterday</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Total KM Card -->
+                <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 sm:p-6 rounded-lg shadow-sm mb-6">
+                    <div class="flex items-center justify-between">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-blue-100 text-xs sm:text-sm font-medium text-wrap">Total Kilometers Driven</p>
+                            <p class="text-2xl sm:text-3xl font-bold counter text-ellipsis" id="totalKm">0</p>
+                            <p class="text-blue-100 text-xs sm:text-sm mt-1 text-wrap">Across all vehicles this month</p>
+                        </div>
+                        <i data-lucide="map-pin" class="h-8 w-8 sm:h-12 sm:w-12 text-blue-200 flex-shrink-0"></i>
+                    </div>
+                </div>
+
+                <!-- Charts and Map Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
+                    <!-- KM Driven Chart -->
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-0 text-wrap">Kilometers Driven by Vehicle</h3>
+                            <div class="flex space-x-2">
+                                <button onclick="toggleChartType('bar')" class="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 btn-responsive">Bar</button>
+                                <button onclick="toggleChartType('line')" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 btn-responsive">Line</button>
+                            </div>
+                        </div>
+                        <div class="responsive-chart">
+                            <canvas id="kmChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Map -->
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-0 text-wrap">Vehicle Locations</h3>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                                <span class="text-xs sm:text-sm text-gray-600 text-wrap">Moving</span>
+                                <div class="w-3 h-3 bg-red-500 rounded-full ml-2 flex-shrink-0"></div>
+                                <span class="text-xs sm:text-sm text-gray-600 text-wrap">Stopped</span>
+                            </div>
+                        </div>
+                        <div id="map" class="responsive-map"></div>
+                    </div>
+                </div>
+
+                <!-- Maintenance Schedule -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-4 sm:p-6 border-b border-gray-200">
+                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                            <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-0 text-wrap">Maintenance Schedule & Alerts</h3>
+                            <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                                <button onclick="exportToExcel()" class="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors btn-responsive">
+                                    <i data-lucide="file-text" class="h-3 w-3 sm:h-4 sm:w-4 inline mr-1 sm:mr-2"></i>
+                                    <span class="hidden sm:inline">Export Excel</span>
+                                    <span class="sm:hidden">Excel</span>
+                                </button>
+                                <button onclick="exportToPDF()" class="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors btn-responsive">
+                                    <i data-lucide="file" class="h-3 w-3 sm:h-4 sm:w-4 inline mr-1 sm:mr-2"></i>
+                                    <span class="hidden sm:inline">Export PDF</span>
+                                    <span class="sm:hidden">PDF</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="responsive-table">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap">Vehicle</th>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap hidden sm:table-cell">Plate Number</th>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap">Last Service</th>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap">Next Service Due</th>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap">Status</th>
+                                    <th class="px-2 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-wrap">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maintenanceTable" class="bg-white divide-y divide-gray-200">
+                                <!-- Dynamic content will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map View Page -->
+            <div id="map-page" class="page">
+                <div class="mb-6">
+                    <h2 class="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Live Vehicle Tracking</h2>
+                    <p class="text-gray-600">Real-time location monitoring and vehicle status tracking</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Map Container -->
+                    <div class="lg:col-span-2">
+                        <div class="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-2 sm:mb-0">Vehicle Locations</h3>
+                                <div class="flex flex-wrap items-center gap-2 sm:gap-4">
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                        <span class="text-sm text-gray-600">Moving (3)</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-red-500 rounded-full"></div>
+                                        <span class="text-sm text-gray-600">Stopped (2)</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                                        <span class="text-sm text-gray-600">Idle (1)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="mapView" class="responsive-map"></div>
+                        </div>
+                    </div>
+
+                    <!-- Vehicle List -->
+                    <div class="space-y-4">
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Vehicle Status</h3>
+                            <div class="space-y-3" id="vehicleList">
+                                <!-- Dynamic vehicle list will be inserted here -->
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-lg shadow-sm p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">Total Vehicles</span>
+                                    <span class="font-semibold text-gray-900" id="totalVehicles">8</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">Active Routes</span>
+                                    <span class="font-semibold text-green-600">5</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">Avg Speed</span>
+                                    <span class="font-semibold text-blue-600">45 km/h</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm text-gray-600">Fuel Level</span>
+                                    <span class="font-semibold text-orange-600">78%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Page -->
+            <div id="analytics-page" class="page">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Fleet Analytics</h2>
+                    <p class="text-gray-600">Comprehensive insights and performance metrics</p>
+                </div>
+
+                <!-- Analytics Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+                    <div class="premium-card p-4 sm:p-6 rounded-lg shadow-sm analytics-card">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-blue-100 text-xs sm:text-sm font-medium text-wrap">Total Distance</p>
+                                <p class="text-xl sm:text-3xl font-bold text-white text-ellipsis" id="totalDistance">12,450 km</p>
+                            </div>
+                            <i data-lucide="trending-up" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                    </div>
+
+                    <div class="premium-card-2 p-4 sm:p-6 rounded-lg shadow-sm analytics-card">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-pink-100 text-xs sm:text-sm font-medium text-wrap">Fuel Efficiency</p>
+                                <p class="text-xl sm:text-3xl font-bold text-white text-ellipsis" id="fuelEfficiency">8.2 L/100km</p>
+                            </div>
+                            <i data-lucide="fuel" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                    </div>
+
+                    <div class="premium-card-3 p-4 sm:p-6 rounded-lg shadow-sm analytics-card">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-cyan-100 text-xs sm:text-sm font-medium text-wrap">Avg Speed</p>
+                                <p class="text-xl sm:text-3xl font-bold text-white text-ellipsis" id="avgSpeed">45 km/h</p>
+                            </div>
+                            <i data-lucide="gauge" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                    </div>
+
+                    <div class="premium-card-4 p-4 sm:p-6 rounded-lg shadow-sm analytics-card">
+                        <div class="flex items-center justify-between">
+                            <div class="min-w-0 flex-1">
+                                <p class="text-green-100 text-xs sm:text-sm font-medium text-wrap">Uptime</p>
+                                <p class="text-xl sm:text-3xl font-bold text-white text-ellipsis" id="uptime">94.2%</p>
+                            </div>
+                            <i data-lucide="activity" class="h-6 w-6 sm:h-8 sm:w-8 text-white flex-shrink-0"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6">
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 text-wrap">Distance Trends</h3>
+                        <div class="analytics-chart">
+                            <canvas id="distanceChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 text-wrap">Fuel Consumption</h3>
+                        <div class="analytics-chart">
+                            <canvas id="fuelChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 text-wrap">Speed Distribution</h3>
+                        <div class="analytics-chart">
+                            <canvas id="speedChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bg-white card-responsive rounded-lg shadow-sm">
+                        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4 text-wrap">Route Efficiency</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">Optimal Routes</span>
+                                <span class="font-semibold text-green-600">85%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-green-500 h-2 rounded-full" style="width: 85%"></div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">Idle Time</span>
+                                <span class="font-semibold text-yellow-600">12%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-yellow-500 h-2 rounded-full" style="width: 12%"></div>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-600">Detours</span>
+                                <span class="font-semibold text-red-600">3%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2">
+                                <div class="bg-red-500 h-2 rounded-full" style="width: 3%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Driver Performance</h3>
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                                        <i data-lucide="user" class="h-5 w-5 text-white"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="font-medium text-gray-900">John Smith</p>
+                                        <p class="text-sm text-gray-600">Score: 95</p>
+                                    </div>
+                                </div>
+                                <span class="text-green-600 font-semibold">Excellent</span>
+                            </div>
+                            <div class="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                        <i data-lucide="user" class="h-5 w-5 text-white"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="font-medium text-gray-900">Sarah Johnson</p>
+                                        <p class="text-sm text-gray-600">Score: 88</p>
+                                    </div>
+                                </div>
+                                <span class="text-blue-600 font-semibold">Good</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Page -->
+            <div id="maintenance-page" class="page">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Maintenance Management</h2>
+                    <p class="text-gray-600">Vehicle service tracking and maintenance scheduling</p>
+                </div>
+
+                <!-- Maintenance Overview Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-red-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Overdue Services</p>
+                                <p class="text-2xl font-bold text-red-600" id="overdueServices">2</p>
+                            </div>
+                            <i data-lucide="alert-triangle" class="h-8 w-8 text-red-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-yellow-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Due This Week</p>
+                                <p class="text-2xl font-bold text-yellow-600" id="dueThisWeek">3</p>
+                            </div>
+                            <i data-lucide="clock" class="h-8 w-8 text-yellow-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-blue-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Scheduled</p>
+                                <p class="text-2xl font-bold text-blue-600" id="scheduledServices">8</p>
+                            </div>
+                            <i data-lucide="calendar" class="h-8 w-8 text-blue-500"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-l-4 border-green-500">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Completed</p>
+                                <p class="text-2xl font-bold text-green-600" id="completedServices">15</p>
+                            </div>
+                            <i data-lucide="check-circle" class="h-8 w-8 text-green-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Maintenance Schedule Table -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-gray-900">Service Schedule</h3>
+                            <div class="flex space-x-2">
+                                <button onclick="addMaintenance()" class="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                    <i data-lucide="plus" class="h-4 w-4 inline mr-2"></i>
+                                    Add Service
+                                </button>
+                                <button onclick="exportToExcel()" class="px-4 py-2 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
+                                    <i data-lucide="file-text" class="h-4 w-4 inline mr-2"></i>
+                                    Export
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Service</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Due</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mileage</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maintenanceTableDetailed" class="bg-white divide-y divide-gray-200">
+                                <!-- Dynamic content will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Page -->
+            <div id="reports-page" class="page">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-2">Reports & Analytics</h2>
+                    <p class="text-gray-600">Generate comprehensive reports and export data</p>
+                </div>
+
+                <!-- Report Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <div class="premium-card p-6 rounded-lg shadow-sm cursor-pointer hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Fleet Summary</h3>
+                                <p class="text-blue-100 text-sm">Complete fleet overview report</p>
+                            </div>
+                            <i data-lucide="file-text" class="h-8 w-8 text-white"></i>
+                        </div>
+                        <button onclick="generateReport('fleet-summary')" class="mt-4 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-md hover:bg-opacity-30 transition-colors">
+                            Generate Report
+                        </button>
+                    </div>
+
+                    <div class="premium-card-2 p-6 rounded-lg shadow-sm cursor-pointer hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Performance</h3>
+                                <p class="text-pink-100 text-sm">Driver and vehicle performance</p>
+                            </div>
+                            <i data-lucide="trending-up" class="h-8 w-8 text-white"></i>
+                        </div>
+                        <button onclick="generateReport('performance')" class="mt-4 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-md hover:bg-opacity-30 transition-colors">
+                            Generate Report
+                        </button>
+                    </div>
+
+                    <div class="premium-card-3 p-6 rounded-lg shadow-sm cursor-pointer hover:scale-105 transition-transform">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Maintenance</h3>
+                                <p class="text-cyan-100 text-sm">Service history and schedules</p>
+                            </div>
+                            <i data-lucide="wrench" class="h-8 w-8 text-white"></i>
+                        </div>
+                        <button onclick="generateReport('maintenance')" class="mt-4 w-full bg-white bg-opacity-20 text-white px-4 py-2 rounded-md hover:bg-opacity-30 transition-colors">
+                            Generate Report
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Report Filters -->
+                <div class="bg-white p-6 rounded-lg shadow-sm mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Report Filters</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                            <select id="reportDateRange" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month" selected>This Month</option>
+                                <option value="quarter">This Quarter</option>
+                                <option value="year">This Year</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
+                            <select id="reportVehicle" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                                <option value="all">All Vehicles</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
+                            <select id="reportType" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-full">
+                                <option value="summary">Summary</option>
+                                <option value="detailed">Detailed</option>
+                                <option value="comparative">Comparative</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="applyReportFilters()" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">
+                                Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Reports -->
+                <div class="bg-white rounded-lg shadow-sm">
+                    <div class="p-6 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900">Recent Reports</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-4" id="recentReports">
+                            <!-- Dynamic content will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Sample demo data
+        const fleetData = {
+            vehicles: [
+                { id: 1, name: "Truck-001", plate: "ABC-123", status: "moving", km: 1250, lat: 40.7128, lng: -74.0060, lastService: "2024-01-15", nextService: "2024-04-15" },
+                { id: 2, name: "Truck-002", plate: "DEF-456", status: "stopped", km: 980, lat: 40.7589, lng: -73.9851, lastService: "2024-02-01", nextService: "2024-05-01" },
+                { id: 3, name: "Truck-003", plate: "GHI-789", status: "idle", km: 2100, lat: 40.7505, lng: -73.9934, lastService: "2024-01-20", nextService: "2024-04-20" },
+                { id: 4, name: "Truck-004", plate: "JKL-012", status: "moving", km: 1750, lat: 40.7614, lng: -73.9776, lastService: "2024-02-10", nextService: "2024-05-10" },
+                { id: 5, name: "Truck-005", plate: "MNO-345", status: "no_connection", km: 890, lat: 40.7282, lng: -73.7949, lastService: "2024-01-25", nextService: "2024-04-25" },
+                { id: 6, name: "Truck-006", plate: "PQR-678", status: "battery_disconnected", km: 1450, lat: 40.6892, lng: -74.0445, lastService: "2024-02-05", nextService: "2024-05-05" },
+                { id: 7, name: "Truck-007", plate: "STU-901", status: "moving", km: 3200, lat: 40.7831, lng: -73.9712, lastService: "2024-01-30", nextService: "2024-04-30" },
+                { id: 8, name: "Truck-008", plate: "VWX-234", status: "stopped", km: 1100, lat: 40.7505, lng: -73.9934, lastService: "2024-02-15", nextService: "2024-05-15" }
+            ]
+        };
+
+        let map;
+        let mapView;
+        let kmChart;
+        let distanceChart;
+        let fuelChart;
+        let speedChart;
+        let currentChartType = 'bar';
+        let currentPage = 'dashboard';
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeLucideIcons();
+            initializeMap();
+            initializeMapView();
+            initializeChart();
+            initializeAnalyticsCharts();
+            updateAnalyticsData();
+            populateVehicleFilter();
+            updateDashboard();
+            populateMaintenanceTable();
+            populateMaintenanceTableDetailed();
+            populateVehicleList();
+            populateRecentReports();
+            startAutoRefresh();
+            updateLastUpdated();
+        });
+
+        function initializeLucideIcons() {
+            lucide.createIcons();
+        }
+
+        function initializeMap() {
+            map = L.map('map').setView([40.7128, -74.0060], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            updateMapMarkers();
+        }
+
+        function initializeMapView() {
+            mapView = L.map('mapView').setView([40.7128, -74.0060], 11);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(mapView);
+
+            updateMapViewMarkers();
+        }
+
+        function updateMapMarkers() {
+            // Clear existing markers
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            // Add vehicle markers
+            fleetData.vehicles.forEach(vehicle => {
+                const color = getStatusColor(vehicle.status);
+                const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`
+                    <div class="p-2">
+                        <h4 class="font-semibold">${vehicle.name}</h4>
+                        <p class="text-sm text-gray-600">Plate: ${vehicle.plate}</p>
+                        <p class="text-sm">Status: <span class="capitalize">${vehicle.status.replace('_', ' ')}</span></p>
+                        <p class="text-sm">KM: ${vehicle.km.toLocaleString()}</p>
+                    </div>
+                `);
+            });
+        }
+
+        function updateMapViewMarkers() {
+            // Clear existing markers
+            mapView.eachLayer(function(layer) {
+                if (layer instanceof L.Marker) {
+                    mapView.removeLayer(layer);
+                }
+            });
+
+            // Add vehicle markers
+            fleetData.vehicles.forEach(vehicle => {
+                const color = getStatusColor(vehicle.status);
+                const marker = L.circleMarker([vehicle.lat, vehicle.lng], {
+                    radius: 10,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 3,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(mapView);
+
+                marker.bindPopup(`
+                    <div class="p-3">
+                        <h4 class="font-semibold text-lg">${vehicle.name}</h4>
+                        <p class="text-sm text-gray-600">Plate: ${vehicle.plate}</p>
+                        <p class="text-sm">Status: <span class="capitalize font-medium">${vehicle.status.replace('_', ' ')}</span></p>
+                        <p class="text-sm">KM: ${vehicle.km.toLocaleString()}</p>
+                        <p class="text-sm">Last Service: ${formatDate(vehicle.lastService)}</p>
+                    </div>
+                `);
+            });
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'moving': '#10B981',
+                'stopped': '#EF4444',
+                'idle': '#F59E0B',
+                'no_connection': '#6B7280',
+                'battery_disconnected': '#F97316'
+            };
+            return colors[status] || '#6B7280';
+        }
+
+        function initializeChart() {
+            const ctx = document.getElementById('kmChart').getContext('2d');
+            updateChart();
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('kmChart').getContext('2d');
+            
+            if (kmChart) {
+                kmChart.destroy();
+            }
+
+            const vehicleNames = fleetData.vehicles.map(v => v.name);
+            const kmData = fleetData.vehicles.map(v => v.km);
+
+            kmChart = new Chart(ctx, {
+                type: currentChartType,
+                data: {
+                    labels: vehicleNames,
+                    datasets: [{
+                        label: 'Kilometers Driven',
+                        data: kmData,
+                        backgroundColor: currentChartType === 'bar' ? 
+                            'rgba(59, 130, 246, 0.5)' : 'rgba(59, 130, 246, 0.2)',
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        borderWidth: 2,
+                        fill: currentChartType === 'line'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString() + ' km';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAnalyticsData() {
+            // Update analytics cards with real data
+            const totalKm = fleetData.vehicles.reduce((sum, v) => sum + v.km, 0);
+            const avgKm = Math.round(totalKm / fleetData.vehicles.length);
+            const movingVehicles = fleetData.vehicles.filter(v => v.status === 'moving').length;
+            const utilization = Math.round((movingVehicles / fleetData.vehicles.length) * 100);
+            
+            // Update total distance
+            const totalDistanceEl = document.getElementById('totalDistance');
+            if (totalDistanceEl) {
+                totalDistanceEl.textContent = totalKm.toLocaleString() + ' km';
+            }
+            
+            // Update fuel efficiency (simulated)
+            const fuelEfficiencyEl = document.getElementById('fuelEfficiency');
+            if (fuelEfficiencyEl) {
+                const avgFuelEfficiency = (7.5 + Math.random() * 1.5).toFixed(1);
+                fuelEfficiencyEl.textContent = avgFuelEfficiency + ' L/100km';
+            }
+            
+            // Update average speed (simulated)
+            const avgSpeedEl = document.getElementById('avgSpeed');
+            if (avgSpeedEl) {
+                const avgSpeed = Math.round(40 + Math.random() * 20);
+                avgSpeedEl.textContent = avgSpeed + ' km/h';
+            }
+            
+            // Update uptime
+            const uptimeEl = document.getElementById('uptime');
+            if (uptimeEl) {
+                const uptime = (90 + Math.random() * 8).toFixed(1);
+                uptimeEl.textContent = uptime + '%';
+            }
+        }
+
+        function initializeAnalyticsCharts() {
+            // Distance Trends Chart
+            const distanceCtx = document.getElementById('distanceChart').getContext('2d');
+            distanceChart = new Chart(distanceCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    datasets: [{
+                        label: 'Distance (km)',
+                        data: [8500, 9200, 10500, 11200, 10800, 12450],
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Fuel Consumption Chart
+            const fuelCtx = document.getElementById('fuelChart').getContext('2d');
+            fuelChart = new Chart(fuelCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Truck-001', 'Truck-002', 'Truck-003', 'Truck-004', 'Truck-005', 'Truck-006'],
+                    datasets: [{
+                        label: 'Fuel Consumption (L/100km)',
+                        data: [8.2, 7.8, 8.5, 7.9, 8.1, 8.3],
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(139, 92, 246, 0.8)',
+                            'rgba(236, 72, 153, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Speed Distribution Chart
+            const speedCtx = document.getElementById('speedChart').getContext('2d');
+            speedChart = new Chart(speedCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['0-30 km/h', '30-60 km/h', '60-90 km/h', '90+ km/h'],
+                    datasets: [{
+                        data: [15, 35, 40, 10],
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(59, 130, 246, 0.8)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        function toggleChartType(type) {
+            currentChartType = type;
+            updateChart();
+        }
+
+        function populateVehicleFilter() {
+            const select = document.getElementById('vehicleFilter');
+            select.innerHTML = '<option value="all">All Vehicles</option>';
+            fleetData.vehicles.forEach(vehicle => {
+                const option = document.createElement('option');
+                option.value = vehicle.id;
+                option.textContent = `${vehicle.name} (${vehicle.plate})`;
+                select.appendChild(option);
+            });
+        }
+
+        function updateDashboard() {
+            const statusCounts = {
+                moving: 0,
+                stopped: 0,
+                idle: 0,
+                no_connection: 0,
+                battery_disconnected: 0
+            };
+
+            let totalKm = 0;
+
+            fleetData.vehicles.forEach(vehicle => {
+                statusCounts[vehicle.status]++;
+                totalKm += vehicle.km;
+            });
+
+            // Animate counters
+            animateCounter('movingCount', statusCounts.moving);
+            animateCounter('stoppedCount', statusCounts.stopped);
+            animateCounter('idleCount', statusCounts.idle);
+            animateCounter('noConnectionCount', statusCounts.no_connection);
+            animateCounter('batteryCount', statusCounts.battery_disconnected);
+            animateCounter('totalKm', totalKm);
+
+            updateMapMarkers();
+            if (mapView) updateMapViewMarkers();
+            updateChart();
+        }
+
+        // Page Navigation Functions
+        function showPage(pageName) {
+            // Hide all pages
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // Show selected page
+            document.getElementById(pageName + '-page').classList.add('active');
+            
+            // Update desktop navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (event && event.target) {
+                const navItem = event.target.closest('.nav-item');
+                if (navItem) {
+                    navItem.classList.add('active');
+                }
+            }
+            
+            // Update mobile navigation
+            updateMobileNavActive(pageName);
+            
+            currentPage = pageName;
+            
+            // Initialize page-specific content
+            if (pageName === 'map') {
+                setTimeout(() => {
+                    if (mapView) {
+                        mapView.invalidateSize();
+                    }
+                }, 100);
+            }
+            
+            if (pageName === 'analytics') {
+                setTimeout(() => {
+                    // Update analytics data
+                    updateAnalyticsData();
+                    
+                    // Resize analytics charts when page is shown
+                    if (distanceChart) distanceChart.resize();
+                    if (fuelChart) fuelChart.resize();
+                    if (speedChart) speedChart.resize();
+                }, 100);
+            }
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('theme-dark');
+            const themeIcon = document.getElementById('themeIcon');
+            if (document.body.classList.contains('theme-dark')) {
+                themeIcon.setAttribute('data-lucide', 'sun');
+            } else {
+                themeIcon.setAttribute('data-lucide', 'moon');
+            }
+            lucide.createIcons();
+        }
+
+        function addMaintenance() {
+            alert('Add Maintenance feature would open a modal or form here');
+        }
+
+        function generateReport(type) {
+            const reportTypes = {
+                'fleet-summary': 'Fleet Summary Report',
+                'performance': 'Performance Report',
+                'maintenance': 'Maintenance Report'
+            };
+            
+            alert(`Generating ${reportTypes[type]}... This would create and download the report.`);
+        }
+
+        function applyReportFilters() {
+            const dateRange = document.getElementById('reportDateRange').value;
+            const vehicle = document.getElementById('reportVehicle').value;
+            const reportType = document.getElementById('reportType').value;
+            
+            console.log('Applying report filters:', { dateRange, vehicle, reportType });
+            alert('Report filters applied! This would refresh the report data.');
+        }
+
+        function animateCounter(elementId, targetValue) {
+            const element = document.getElementById(elementId);
+            const startValue = parseInt(element.textContent) || 0;
+            const duration = 1000;
+            const startTime = performance.now();
+
+            function updateCounter(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const currentValue = Math.floor(startValue + (targetValue - startValue) * progress);
+                
+                element.textContent = currentValue.toLocaleString();
+
+                if (progress < 1) {
+                    requestAnimationFrame(updateCounter);
+                }
+            }
+
+            requestAnimationFrame(updateCounter);
+        }
+
+        function populateMaintenanceTable() {
+            const tbody = document.getElementById('maintenanceTable');
+            tbody.innerHTML = '';
+
+            fleetData.vehicles.forEach(vehicle => {
+                const row = document.createElement('tr');
+                const nextServiceDate = new Date(vehicle.nextService);
+                const today = new Date();
+                const daysUntilService = Math.ceil((nextServiceDate - today) / (1000 * 60 * 60 * 24));
+                
+                let statusBadge = '';
+                let statusClass = '';
+                
+                if (daysUntilService < 0) {
+                    statusBadge = 'Overdue';
+                    statusClass = 'bg-red-100 text-red-800 alert-badge';
+                } else if (daysUntilService <= 7) {
+                    statusBadge = 'Due Soon';
+                    statusClass = 'bg-yellow-100 text-yellow-800 alert-badge';
+                } else if (daysUntilService <= 30) {
+                    statusBadge = 'Upcoming';
+                    statusClass = 'bg-blue-100 text-blue-800';
+                } else {
+                    statusBadge = 'Scheduled';
+                    statusClass = 'bg-green-100 text-green-800';
+                }
+
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${vehicle.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.plate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(vehicle.lastService)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(vehicle.nextService)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusBadge}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-blue-600 hover:text-blue-900">View Details</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function populateMaintenanceTableDetailed() {
+            const tbody = document.getElementById('maintenanceTableDetailed');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+
+            const serviceTypes = ['Oil Change', 'Brake Inspection', 'Engine Service', 'Tire Rotation', 'General Inspection'];
+            
+            fleetData.vehicles.forEach(vehicle => {
+                const serviceType = serviceTypes[Math.floor(Math.random() * serviceTypes.length)];
+                const nextServiceDate = new Date(vehicle.nextService);
+                const today = new Date();
+                const daysUntilService = Math.ceil((nextServiceDate - today) / (1000 * 60 * 60 * 24));
+                
+                let statusBadge = '';
+                let statusClass = '';
+                
+                if (daysUntilService < 0) {
+                    statusBadge = 'Overdue';
+                    statusClass = 'bg-red-100 text-red-800 alert-badge';
+                } else if (daysUntilService <= 7) {
+                    statusBadge = 'Due Soon';
+                    statusClass = 'bg-yellow-100 text-yellow-800 alert-badge';
+                } else if (daysUntilService <= 30) {
+                    statusBadge = 'Upcoming';
+                    statusClass = 'bg-blue-100 text-blue-800';
+                } else {
+                    statusBadge = 'Scheduled';
+                    statusClass = 'bg-green-100 text-green-800';
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${vehicle.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${serviceType}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(vehicle.lastService)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formatDate(vehicle.nextService)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${vehicle.km.toLocaleString()}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                            ${statusBadge}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+                        <button class="text-green-600 hover:text-green-900">Complete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function populateVehicleList() {
+            const vehicleList = document.getElementById('vehicleList');
+            if (!vehicleList) return;
+            
+            vehicleList.innerHTML = '';
+
+            fleetData.vehicles.forEach(vehicle => {
+                const color = getStatusColor(vehicle.status);
+                const statusIcon = getStatusIcon(vehicle.status);
+                
+                const vehicleItem = document.createElement('div');
+                vehicleItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer';
+                vehicleItem.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 rounded-full mr-3" style="background-color: ${color}"></div>
+                        <div>
+                            <p class="font-medium text-gray-900">${vehicle.name}</p>
+                            <p class="text-sm text-gray-600">${vehicle.plate}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <i data-lucide="${statusIcon}" class="h-4 w-4 mr-2" style="color: ${color}"></i>
+                        <span class="text-sm font-medium capitalize">${vehicle.status.replace('_', ' ')}</span>
+                    </div>
+                `;
+                vehicleList.appendChild(vehicleItem);
+            });
+        }
+
+        function populateRecentReports() {
+            const recentReports = document.getElementById('recentReports');
+            if (!recentReports) return;
+            
+            const reports = [
+                { name: 'Fleet Summary Report', date: '2024-03-15', type: 'PDF', size: '2.3 MB' },
+                { name: 'Performance Analysis', date: '2024-03-14', type: 'Excel', size: '1.8 MB' },
+                { name: 'Maintenance Schedule', date: '2024-03-13', type: 'PDF', size: '1.2 MB' },
+                { name: 'Fuel Efficiency Report', date: '2024-03-12', type: 'Excel', size: '3.1 MB' }
+            ];
+            
+            recentReports.innerHTML = '';
+            
+            reports.forEach(report => {
+                const reportItem = document.createElement('div');
+                reportItem.className = 'flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors';
+                reportItem.innerHTML = `
+                    <div class="flex items-center">
+                        <i data-lucide="file-text" class="h-5 w-5 text-blue-600 mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900">${report.name}</p>
+                            <p class="text-sm text-gray-600">${formatDate(report.date)} • ${report.size}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">${report.type}</span>
+                        <button class="text-blue-600 hover:text-blue-900">
+                            <i data-lucide="download" class="h-4 w-4"></i>
+                        </button>
+                    </div>
+                `;
+                recentReports.appendChild(reportItem);
+            });
+        }
+
+        function getStatusIcon(status) {
+            const icons = {
+                'moving': 'play-circle',
+                'stopped': 'pause-circle',
+                'idle': 'clock',
+                'no_connection': 'wifi-off',
+                'battery_disconnected': 'battery'
+            };
+            return icons[status] || 'help-circle';
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+            });
+        }
+
+        function applyFilters() {
+            const dateRange = document.getElementById('dateRange').value;
+            const vehicleFilter = document.getElementById('vehicleFilter').value;
+            
+            // Simulate filtering (in a real app, this would filter the data)
+            console.log('Applying filters:', { dateRange, vehicleFilter });
+            updateDashboard();
+        }
+
+        function refreshData() {
+            // Simulate data refresh with random variations
+            fleetData.vehicles.forEach(vehicle => {
+                // Randomly change some vehicle statuses
+                if (Math.random() < 0.1) {
+                    const statuses = ['moving', 'stopped', 'idle', 'no_connection', 'battery_disconnected'];
+                    vehicle.status = statuses[Math.floor(Math.random() * statuses.length)];
+                }
+                
+                // Add some random km variation
+                vehicle.km += Math.floor(Math.random() * 50);
+            });
+            
+            updateDashboard();
+            updateLastUpdated();
+        }
+
+        function startAutoRefresh() {
+            setInterval(refreshData, 30000); // Refresh every 30 seconds
+        }
+
+        function updateLastUpdated() {
+            const now = new Date();
+            document.getElementById('lastUpdated').textContent = now.toLocaleTimeString();
+        }
+
+        function exportToExcel() {
+            const ws = XLSX.utils.json_to_sheet(fleetData.vehicles.map(v => ({
+                'Vehicle Name': v.name,
+                'Plate Number': v.plate,
+                'Status': v.status,
+                'Kilometers': v.km,
+                'Last Service': v.lastService,
+                'Next Service': v.nextService
+            })));
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Fleet Data');
+            XLSX.writeFile(wb, 'fleet-data.xlsx');
+        }
+
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFontSize(20);
+            doc.text('Fleet Tracking Report', 20, 20);
+            
+            doc.setFontSize(12);
+            doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 30);
+            doc.text(`Total Vehicles: ${fleetData.vehicles.length}`, 20, 40);
+            
+            let y = 60;
+            fleetData.vehicles.forEach((vehicle, index) => {
+                if (y > 280) {
+                    doc.addPage();
+                    y = 20;
+                }
+                
+                doc.text(`${index + 1}. ${vehicle.name} (${vehicle.plate})`, 20, y);
+                doc.text(`   Status: ${vehicle.status} | KM: ${vehicle.km}`, 20, y + 10);
+                y += 25;
+            });
+            
+            doc.save('fleet-report.pdf');
+        }
+
+        // Mobile Navigation Functions
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('mobileSidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        function closeMobileMenu() {
+            const sidebar = document.getElementById('mobileSidebar');
+            const overlay = document.getElementById('mobileOverlay');
+            
+            sidebar.classList.remove('open');
+            overlay.classList.remove('active');
+        }
+
+        // Update mobile navigation active state
+        function updateMobileNavActive(pageName) {
+            document.querySelectorAll('.mobile-nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            const activeItem = document.querySelector(`[onclick*="showPage('${pageName}')"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+            }
+        }
+
+        // Language Support
+        let currentLanguage = 'en';
+        const translations = {
+            en: {
+                title: 'Fleet Tracking Dashboard',
+                mobileTitle: 'Fleet Dashboard',
+                aiCoach: 'AI Fleet Coach',
+                aiCoachSubtitle: 'Your intelligent fleet management assistant',
+                online: 'Online',
+                offline: 'Offline',
+                readyToHelp: 'Ready to help',
+                testConnection: 'Test Connection',
+                test: 'Test',
+                send: 'Send',
+                askAnything: 'Ask me anything about your fleet...',
+                aiCoachCanAnalyze: 'AI Coach can analyze your fleet data and provide insights',
+                lastUpdated: 'Last updated:',
+                refresh: 'Refresh',
+                theme: 'Toggle Theme',
+                aiCoachTitle: 'AI Coach'
+            },
+            es: {
+                title: 'Panel de Seguimiento de Flota',
+                mobileTitle: 'Panel de Flota',
+                aiCoach: 'Entrenador IA de Flota',
+                aiCoachSubtitle: 'Tu asistente inteligente de gestión de flota',
+                online: 'En línea',
+                offline: 'Desconectado',
+                readyToHelp: 'Listo para ayudar',
+                testConnection: 'Probar Conexión',
+                test: 'Probar',
+                send: 'Enviar',
+                askAnything: 'Pregúntame cualquier cosa sobre tu flota...',
+                aiCoachCanAnalyze: 'El Entrenador IA puede analizar los datos de tu flota y proporcionar información',
+                lastUpdated: 'Última actualización:',
+                refresh: 'Actualizar',
+                theme: 'Cambiar Tema',
+                aiCoachTitle: 'Entrenador IA'
+            },
+            fr: {
+                title: 'Tableau de Bord de Suivi de Flotte',
+                mobileTitle: 'Tableau de Flotte',
+                aiCoach: 'Coach IA de Flotte',
+                aiCoachSubtitle: 'Votre assistant intelligent de gestion de flotte',
+                online: 'En ligne',
+                offline: 'Hors ligne',
+                readyToHelp: 'Prêt à aider',
+                testConnection: 'Tester la Connexion',
+                test: 'Tester',
+                send: 'Envoyer',
+                askAnything: 'Demandez-moi n\'importe quoi sur votre flotte...',
+                aiCoachCanAnalyze: 'Le Coach IA peut analyser les données de votre flotte et fournir des informations',
+                lastUpdated: 'Dernière mise à jour:',
+                refresh: 'Actualiser',
+                theme: 'Changer le Thème',
+                aiCoachTitle: 'Coach IA'
+            },
+            de: {
+                title: 'Flotten-Tracking-Dashboard',
+                mobileTitle: 'Flotten-Dashboard',
+                aiCoach: 'KI-Flotten-Coach',
+                aiCoachSubtitle: 'Ihr intelligenter Flottenmanagement-Assistent',
+                online: 'Online',
+                offline: 'Offline',
+                readyToHelp: 'Bereit zu helfen',
+                testConnection: 'Verbindung Testen',
+                test: 'Testen',
+                send: 'Senden',
+                askAnything: 'Fragen Sie mich alles über Ihre Flotte...',
+                aiCoachCanAnalyze: 'Der KI-Coach kann Ihre Flottendaten analysieren und Einblicke liefern',
+                lastUpdated: 'Zuletzt aktualisiert:',
+                refresh: 'Aktualisieren',
+                theme: 'Design Wechseln',
+                aiCoachTitle: 'KI-Coach'
+            },
+            zh: {
+                title: '车队跟踪仪表板',
+                mobileTitle: '车队仪表板',
+                aiCoach: 'AI车队教练',
+                aiCoachSubtitle: '您的智能车队管理助手',
+                online: '在线',
+                offline: '离线',
+                readyToHelp: '准备帮助',
+                testConnection: '测试连接',
+                test: '测试',
+                send: '发送',
+                askAnything: '问我任何关于您车队的问题...',
+                aiCoachCanAnalyze: 'AI教练可以分析您的车队数据并提供见解',
+                lastUpdated: '最后更新:',
+                refresh: '刷新',
+                theme: '切换主题',
+                aiCoachTitle: 'AI教练'
+            }
+        };
+
+        // AI Coach Functions
+        // ========================================
+        // SETUP INSTRUCTIONS:
+        // 1. Get your OpenAI API key from: https://platform.openai.com/api-keys
+        // 2. Replace 'YOUR_OPENAI_API_KEY_HERE' below with your actual API key
+        // 3. Never commit real API keys to version control
+        // ========================================
+        const API_KEY = 'YOUR_OPENAI_API_KEY_HERE'; // Replace with your actual OpenAI API key
+        let chatHistory = [];
+        let isAICoachOnline = true;
+
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            updateUI();
+        }
+
+        function updateUI() {
+            const t = translations[currentLanguage];
+            
+            // Update mobile header
+            document.querySelector('.mobile-header h1').textContent = t.mobileTitle;
+            
+            // Update desktop header
+            document.querySelector('.page-desktop h1').textContent = t.title;
+            
+            // Update AI Coach modal
+            const aiCoachTitle = document.querySelector('#aiCoachModal h3');
+            const aiCoachSubtitle = document.querySelector('#aiCoachModal p');
+            const chatInput = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendButton');
+            const aiStatusText = document.getElementById('aiStatusText');
+            const testButton = document.querySelector('button[onclick="testAPIConnection()"]');
+            const infoText = document.querySelector('#aiCoachModal .text-gray-500 span');
+            
+            if (aiCoachTitle) aiCoachTitle.textContent = t.aiCoach;
+            if (aiCoachSubtitle) aiCoachSubtitle.textContent = t.aiCoachSubtitle;
+            if (chatInput) chatInput.placeholder = t.askAnything;
+            if (sendButton) {
+                const sendIcon = sendButton.querySelector('i');
+                const sendText = sendButton.querySelector('span');
+                if (sendText) sendText.textContent = t.send;
+            }
+            if (aiStatusText) aiStatusText.textContent = t.readyToHelp;
+            if (testButton) testButton.textContent = t.test;
+            if (infoText) infoText.textContent = t.aiCoachCanAnalyze;
+            
+            // Update tooltips
+            const aiCoachButtons = document.querySelectorAll('[title*="AI Coach"]');
+            aiCoachButtons.forEach(btn => btn.title = t.aiCoachTitle);
+            
+            const refreshButtons = document.querySelectorAll('[title*="Refresh"]');
+            refreshButtons.forEach(btn => btn.title = t.refresh);
+            
+            const themeButtons = document.querySelectorAll('[title*="Theme"]');
+            themeButtons.forEach(btn => btn.title = t.theme);
+        }
+
+        function openAICoach() {
+            document.getElementById('aiCoachModal').classList.remove('hidden');
+            
+            // Ensure input is visible and focused
+            setTimeout(() => {
+                const chatInput = document.getElementById('chatInput');
+                if (chatInput) {
+                    chatInput.focus();
+                    chatInput.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            }, 100);
+            
+            updateAIStatus('online', translations[currentLanguage].readyToHelp);
+            
+            // Test API connection
+            testAPIConnection();
+        }
+
+        async function testAPIConnection() {
+            const testButton = document.querySelector('button[onclick="testAPIConnection()"]');
+            const originalText = testButton.textContent;
+            
+            try {
+                testButton.textContent = 'Testing...';
+                testButton.disabled = true;
+                
+                console.log('Testing API connection...');
+                const response = await fetch('https://api.openai.com/v1/models', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    console.log('API connection successful');
+                    updateAIStatus('online', 'Connected to AI');
+                    isAICoachOnline = true;
+                    testButton.textContent = '✓ Connected';
+                    testButton.className = 'text-green-500 hover:text-green-700 underline';
+                } else {
+                    console.log('API connection failed:', response.status);
+                    updateAIStatus('offline', 'Offline mode - using local data');
+                    isAICoachOnline = false;
+                    testButton.textContent = '✗ Failed';
+                    testButton.className = 'text-red-500 hover:text-red-700 underline';
+                }
+            } catch (error) {
+                console.log('API connection error:', error);
+                updateAIStatus('offline', 'Offline mode - using local data');
+                isAICoachOnline = false;
+                testButton.textContent = '✗ Error';
+                testButton.className = 'text-red-500 hover:text-red-700 underline';
+            } finally {
+                setTimeout(() => {
+                    testButton.textContent = originalText;
+                    testButton.disabled = false;
+                    testButton.className = 'text-blue-500 hover:text-blue-700 underline';
+                }, 2000);
+            }
+        }
+
+        function updateAIStatus(status, text) {
+            const statusElement = document.getElementById('aiStatus');
+            const statusText = document.getElementById('aiStatusText');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const t = translations[currentLanguage];
+            
+            if (status === 'online') {
+                statusElement.className = 'ai-coach-status';
+                statusText.textContent = text || t.readyToHelp;
+                connectionStatus.textContent = t.online;
+            } else if (status === 'offline') {
+                statusElement.className = 'ai-coach-status offline';
+                statusText.textContent = text || t.offline;
+                connectionStatus.textContent = t.offline;
+            } else if (status === 'typing') {
+                statusElement.className = 'ai-coach-status ai-coach-pulse';
+                statusText.textContent = text || 'Thinking...';
+                connectionStatus.textContent = 'Processing';
+            }
+        }
+
+        function closeAICoach() {
+            document.getElementById('aiCoachModal').classList.add('hidden');
+        }
+
+        // Close AI Coach when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('aiCoachModal');
+            const modalContent = modal.querySelector('.bg-white');
+            
+            if (event.target === modal && !modalContent.contains(event.target)) {
+                closeAICoach();
+            }
+        });
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function askQuickQuestion(question) {
+            const input = document.getElementById('chatInput');
+            input.value = question;
+            sendMessage();
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const sendButton = document.getElementById('sendButton');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Disable input and button
+            input.disabled = true;
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i data-lucide="loader-2" class="h-4 w-4 animate-spin"></i><span>Sending...</span>';
+
+            // Update status
+            updateAIStatus('typing', 'Analyzing your fleet data...');
+
+            // Add user message to chat
+            addMessageToChat(message, 'user');
+            input.value = '';
+
+            // Show typing indicator
+            const typingId = addTypingIndicator();
+
+            try {
+                // Prepare context about fleet data
+                const fleetContext = getFleetContext();
+                
+                console.log('Attempting to call OpenAI API...');
+                
+                // Call OpenAI API
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: 'gpt-3.5-turbo',
+                        messages: [
+                            {
+                                role: 'system',
+                                content: `You are an AI Fleet Management Coach. Provide SHORT, actionable advice (1-2 sentences max).
+
+Current Fleet Data:
+- Total Vehicles: ${fleetData.vehicles.length}
+- Moving: ${fleetData.vehicles.filter(v => v.status === 'moving').length}
+- Stopped: ${fleetData.vehicles.filter(v => v.status === 'stopped').length}
+- Total KM: ${fleetData.vehicles.reduce((sum, v) => sum + v.km, 0).toLocaleString()}
+
+${fleetContext}
+
+Be concise and practical. Focus on immediate actions.`
+                            },
+                            ...chatHistory,
+                            {
+                                role: 'user',
+                                content: message
+                            }
+                        ],
+                        max_tokens: 100,
+                        temperature: 0.7
+                    })
+                });
+
+                console.log('API Response Status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.status} - ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('API Response Data:', data);
+                
+                // Remove typing indicator
+                removeTypingIndicator(typingId);
+                
+                if (data.choices && data.choices[0]) {
+                    const aiResponse = data.choices[0].message.content;
+                    addMessageToChat(aiResponse, 'ai');
+                    
+                    // Update chat history
+                    chatHistory.push(
+                        { role: 'user', content: message },
+                        { role: 'assistant', content: aiResponse }
+                    );
+                    
+                    // Update status
+                    updateAIStatus('online', 'Ready to help');
+                } else {
+                    // Fallback response
+                    const fallbackResponse = getFallbackResponse(message);
+                    addMessageToChat(fallbackResponse, 'ai');
+                    isAICoachOnline = false;
+                    updateAIStatus('offline', 'Offline mode - using local data');
+                }
+            } catch (error) {
+                console.error('AI Coach Error:', error);
+                removeTypingIndicator(typingId);
+                
+                // Try to retry once
+                if (isAICoachOnline) {
+                    console.log('Retrying API call...');
+                    try {
+                        const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${API_KEY}`
+                            },
+                            body: JSON.stringify({
+                                model: 'gpt-3.5-turbo',
+                                messages: [
+                                    {
+                                        role: 'system',
+                                        content: `You are an AI Fleet Management Coach. You help fleet managers optimize their operations, reduce costs, and improve efficiency. 
+
+Current Fleet Data:
+- Total Vehicles: ${fleetData.vehicles.length}
+- Moving Vehicles: ${fleetData.vehicles.filter(v => v.status === 'moving').length}
+- Stopped Vehicles: ${fleetData.vehicles.filter(v => v.status === 'stopped').length}
+- Total Distance: ${fleetData.vehicles.reduce((sum, v) => sum + v.km, 0).toLocaleString()} km
+- Average KM per Vehicle: ${Math.round(fleetData.vehicles.reduce((sum, v) => sum + v.km, 0) / fleetData.vehicles.length)}
+
+Provide helpful, actionable advice based on this fleet data. Be specific and practical in your recommendations.`
+                                    },
+                                    {
+                                        role: 'user',
+                                        content: message
+                                    }
+                                ],
+                                max_tokens: 300,
+                                temperature: 0.7
+                            })
+                        });
+                        
+                        if (retryResponse.ok) {
+                            const retryData = await retryResponse.json();
+                            if (retryData.choices && retryData.choices[0]) {
+                                const aiResponse = retryData.choices[0].message.content;
+                                addMessageToChat(aiResponse, 'ai');
+                                updateAIStatus('online', 'Connected to AI');
+                                return;
+                            }
+                        }
+                    } catch (retryError) {
+                        console.error('Retry failed:', retryError);
+                    }
+                }
+                
+                // Use fallback response system
+                const fallbackResponse = getFallbackResponse(message);
+                addMessageToChat(fallbackResponse, 'ai');
+                isAICoachOnline = false;
+                updateAIStatus('offline', 'Offline mode - using local data');
+            } finally {
+                // Re-enable input and button
+                input.disabled = false;
+                sendButton.disabled = false;
+                sendButton.innerHTML = '<i data-lucide="send" class="h-4 w-4"></i><span>Send</span>';
+                input.focus();
+                
+                // Re-initialize Lucide icons
+                lucide.createIcons();
+            }
+        }
+
+        function addMessageToChat(message, sender) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            
+            if (sender === 'user') {
+                messageDiv.className = 'flex items-start space-x-3 justify-end chat-message-premium';
+                messageDiv.innerHTML = `
+                    <div class="user-message-premium text-white p-4 max-w-sm">
+                        <p class="font-medium">${message}</p>
+                    </div>
+                    <div class="w-10 h-10 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <i data-lucide="user" class="h-5 w-5 text-white"></i>
+                    </div>
+                `;
+            } else {
+                messageDiv.className = 'flex items-start space-x-3 chat-message-premium';
+                messageDiv.innerHTML = `
+                    <div class="ai-coach-avatar w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="bot" class="h-5 w-5 text-white"></i>
+                    </div>
+                    <div class="ai-message-premium p-4 max-w-sm">
+                        <div class="prose prose-sm max-w-none">
+                            ${formatMessage(message)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Re-initialize Lucide icons
+            lucide.createIcons();
+        }
+
+        function formatMessage(message) {
+            // Convert markdown-like formatting to HTML
+            return message
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n• /g, '<br>• ')
+                .replace(/\n- /g, '<br>- ')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p>')
+                .replace(/$/, '</p>');
+        }
+
+        function addTypingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            const typingId = 'typing-' + Date.now();
+            typingDiv.id = typingId;
+            typingDiv.className = 'flex items-start space-x-3 typing-indicator-premium';
+            typingDiv.innerHTML = `
+                <div class="ai-coach-avatar w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="bot" class="h-5 w-5 text-white"></i>
+                </div>
+                <div class="typing-indicator-premium p-4 max-w-sm">
+                    <div class="flex space-x-2">
+                        <div class="typing-dot w-3 h-3 rounded-full"></div>
+                        <div class="typing-dot w-3 h-3 rounded-full"></div>
+                        <div class="typing-dot w-3 h-3 rounded-full"></div>
+                    </div>
+                </div>
+            `;
+            
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            return typingId;
+        }
+
+        function removeTypingIndicator(typingId) {
+            const typingElement = document.getElementById(typingId);
+            if (typingElement) {
+                typingElement.remove();
+            }
+        }
+
+        function getFleetContext() {
+            const statusCounts = {
+                moving: fleetData.vehicles.filter(v => v.status === 'moving').length,
+                stopped: fleetData.vehicles.filter(v => v.status === 'stopped').length,
+                idle: fleetData.vehicles.filter(v => v.status === 'idle').length,
+                no_connection: fleetData.vehicles.filter(v => v.status === 'no_connection').length,
+                battery_disconnected: fleetData.vehicles.filter(v => v.status === 'battery_disconnected').length
+            };
+
+            const totalKm = fleetData.vehicles.reduce((sum, v) => sum + v.km, 0);
+            const avgKm = Math.round(totalKm / fleetData.vehicles.length);
+
+            return `
+Fleet Status Summary:
+- Moving: ${statusCounts.moving} vehicles
+- Stopped: ${statusCounts.stopped} vehicles  
+- Idle: ${statusCounts.idle} vehicles
+- No Connection: ${statusCounts.no_connection} vehicles
+- Battery Issues: ${statusCounts.battery_disconnected} vehicles
+
+Performance Metrics:
+- Total Distance: ${totalKm.toLocaleString()} km
+- Average per Vehicle: ${avgKm.toLocaleString()} km
+- Fleet Utilization: ${Math.round((statusCounts.moving / fleetData.vehicles.length) * 100)}%
+
+Vehicle Details:
+${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toLocaleString()} km`).join('\n')}
+            `;
+        }
+
+        function getFallbackResponse(message) {
+            const lowerMessage = message.toLowerCase();
+            const statusCounts = {
+                moving: fleetData.vehicles.filter(v => v.status === 'moving').length,
+                stopped: fleetData.vehicles.filter(v => v.status === 'stopped').length,
+                idle: fleetData.vehicles.filter(v => v.status === 'idle').length,
+                no_connection: fleetData.vehicles.filter(v => v.status === 'no_connection').length,
+                battery_disconnected: fleetData.vehicles.filter(v => v.status === 'battery_disconnected').length
+            };
+            const totalKm = fleetData.vehicles.reduce((sum, v) => sum + v.km, 0);
+            const avgKm = Math.round(totalKm / fleetData.vehicles.length);
+            const utilization = Math.round((statusCounts.moving / fleetData.vehicles.length) * 100);
+
+            if (lowerMessage.includes('fuel') || lowerMessage.includes('efficiency')) {
+                return `**Fuel Efficiency Tips:**
+• Reduce idle time - saves 10-15% fuel
+• Eco-driving training for drivers
+• Regular maintenance improves efficiency 3-7%
+• GPS routing minimizes waste
+
+*Offline mode - data current*`;
+            }
+            
+            if (lowerMessage.includes('maintenance') || lowerMessage.includes('service')) {
+                const highMileageVehicles = fleetData.vehicles.filter(v => v.km > avgKm * 1.2);
+                return `**Maintenance Priority:**
+• Oil changes every 10,000 km
+• Brake inspection every 25,000 km
+• Tire rotation every 8,000 km
+• High-mileage vehicles need attention
+
+*Offline mode - data current*`;
+            }
+            
+            if (lowerMessage.includes('performance') || lowerMessage.includes('overall')) {
+                return `**Fleet Performance:**
+• ${fleetData.vehicles.length} vehicles total
+• ${statusCounts.moving} moving (${utilization}% utilization)
+• ${totalKm.toLocaleString()} km total distance
+• Health: ${utilization > 70 ? 'Excellent' : utilization > 50 ? 'Good' : 'Needs Attention'}
+
+**Quick Actions:**
+• Optimize idle vehicles
+• Fix connection issues
+• Schedule maintenance
+
+*Offline mode - data current*`;
+            }
+            
+            if (lowerMessage.includes('cost') || lowerMessage.includes('save')) {
+                return `**Cost Savings:**
+• Reduce idle time 30% = $500/month
+• Fix connection issues = better routes
+• Fuel-efficient driving = 15% savings
+• Preventive maintenance = avoid repairs
+
+**Potential Savings:** $1,200-2,000/month
+
+*Offline mode - data current*`;
+            }
+            
+            // Default response
+            return `**Fleet Overview:**
+• ${fleetData.vehicles.length} vehicles total
+• ${statusCounts.moving} moving (${utilization}% utilization)
+• ${totalKm.toLocaleString()} km total distance
+
+**I can help with:**
+• Performance analysis
+• Maintenance scheduling
+• Cost optimization
+• Route planning
+
+*Offline mode - data current*`;
+        }
+
+    </script>
+</body>
+</html>
