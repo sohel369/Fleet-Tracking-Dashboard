@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fleet Tracking Dashboard</title>
     <!-- 
-    SECURITY NOTE: 
-    - Replace 'YOUR_OPENAI_API_KEY_HERE' with your actual OpenAI API key
-    - Never commit real API keys to version control
-    - This file is safe to push to GitHub with the placeholder
+    AI COACH NOTE: 
+    - AI Coach operates in offline mode using intelligent fallback responses
+    - No API key required - responses are generated based on fleet data analysis
+    - This file is safe to push to GitHub - no external API dependencies
     -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -2949,9 +2949,8 @@
         // 2. Replace 'YOUR_OPENAI_API_KEY_HERE' below with your actual API key
         // 3. Never commit real API keys to version control
         // ========================================
-        // const API_KEY = 'YOUR_OPENAI_API_KEY_HERE'; // Replace with your actual OpenAI API key
-        // let chatHistory = [];
-        // let isAICoachOnline = true;
+        let chatHistory = [];
+        let isAICoachOnline = false; // Always offline mode - no API key needed
 
         function changeLanguage(lang) {
             currentLanguage = lang;
@@ -3018,46 +3017,13 @@
         }
 
         async function testAPIConnection() {
+            // AI Coach operates in offline mode - no API connection needed
             const testButton = document.querySelector('button[onclick="testAPIConnection()"]');
-            const originalText = testButton.textContent;
-            
-            try {
-                testButton.textContent = 'Testing...';
-                testButton.disabled = true;
-                
-                console.log('Testing API connection...');
-                const response = await fetch('https://api.openai.com/v1/models', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${API_KEY}`
-                    }
-                });
-                
-                if (response.ok) {
-                    console.log('API connection successful');
-                    updateAIStatus('online', 'Connected to AI');
-                    isAICoachOnline = true;
-                    testButton.textContent = '✓ Connected';
-                    testButton.className = 'text-green-500 hover:text-green-700 underline';
-                } else {
-                    console.log('API connection failed:', response.status);
-                    updateAIStatus('offline', 'Offline mode - using local data');
-                    isAICoachOnline = false;
-                    testButton.textContent = '✗ Failed';
-                    testButton.className = 'text-red-500 hover:text-red-700 underline';
-                }
-            } catch (error) {
-                console.log('API connection error:', error);
-                updateAIStatus('offline', 'Offline mode - using local data');
+            if (testButton) {
+                updateAIStatus('offline', 'Offline mode - using intelligent local data');
                 isAICoachOnline = false;
-                testButton.textContent = '✗ Error';
-                testButton.className = 'text-red-500 hover:text-red-700 underline';
-            } finally {
-                setTimeout(() => {
-                    testButton.textContent = originalText;
-                    testButton.disabled = false;
-                    testButton.className = 'text-blue-500 hover:text-blue-700 underline';
-                }, 2000);
+                testButton.textContent = '✓ Offline Mode';
+                testButton.className = 'text-blue-500 hover:text-blue-700 underline';
             }
         }
 
@@ -3134,127 +3100,29 @@
                 // Prepare context about fleet data
                 const fleetContext = getFleetContext();
                 
-                console.log('Attempting to call OpenAI API...');
+                // Simulate thinking delay for better UX
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
-                // Call OpenAI API
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        model: 'gpt-3.5-turbo',
-                        messages: [
-                            {
-                                role: 'system',
-                                content: `You are an AI Fleet Management Coach. Provide SHORT, actionable advice (1-2 sentences max).
-
-Current Fleet Data:
-- Total Vehicles: ${fleetData.vehicles.length}
-- Moving: ${fleetData.vehicles.filter(v => v.status === 'moving').length}
-- Stopped: ${fleetData.vehicles.filter(v => v.status === 'stopped').length}
-- Total KM: ${fleetData.vehicles.reduce((sum, v) => sum + v.km, 0).toLocaleString()}
-
-${fleetContext}
-
-Be concise and practical. Focus on immediate actions.`
-                            },
-                            ...chatHistory,
-                            {
-                                role: 'user',
-                                content: message
-                            }
-                        ],
-                        max_tokens: 100,
-                        temperature: 0.7
-                    })
-                });
-
-                console.log('API Response Status:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`API Error: ${response.status} - ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                console.log('API Response Data:', data);
+                // Use intelligent fallback response system (offline mode)
+                const fallbackResponse = getFallbackResponse(message);
                 
                 // Remove typing indicator
                 removeTypingIndicator(typingId);
                 
-                if (data.choices && data.choices[0]) {
-                    const aiResponse = data.choices[0].message.content;
-                    addMessageToChat(aiResponse, 'ai');
-                    
-                    // Update chat history
-                    chatHistory.push(
-                        { role: 'user', content: message },
-                        { role: 'assistant', content: aiResponse }
-                    );
-                    
-                    // Update status
-                    updateAIStatus('online', 'Ready to help');
-                } else {
-                    // Fallback response
-                    const fallbackResponse = getFallbackResponse(message);
-                    addMessageToChat(fallbackResponse, 'ai');
-                    isAICoachOnline = false;
-                    updateAIStatus('offline', 'Offline mode - using local data');
-                }
+                // Add AI response
+                addMessageToChat(fallbackResponse, 'ai');
+                
+                // Update chat history
+                chatHistory.push(
+                    { role: 'user', content: message },
+                    { role: 'assistant', content: fallbackResponse }
+                );
+                
+                // Update status
+                updateAIStatus('offline', 'Ready to help');
             } catch (error) {
                 console.error('AI Coach Error:', error);
                 removeTypingIndicator(typingId);
-                
-                // Try to retry once
-                if (isAICoachOnline) {
-                    console.log('Retrying API call...');
-                    try {
-                        const retryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${API_KEY}`
-                            },
-                            body: JSON.stringify({
-                                model: 'gpt-3.5-turbo',
-                                messages: [
-                                    {
-                                        role: 'system',
-                                        content: `You are an AI Fleet Management Coach. You help fleet managers optimize their operations, reduce costs, and improve efficiency. 
-
-Current Fleet Data:
-- Total Vehicles: ${fleetData.vehicles.length}
-- Moving Vehicles: ${fleetData.vehicles.filter(v => v.status === 'moving').length}
-- Stopped Vehicles: ${fleetData.vehicles.filter(v => v.status === 'stopped').length}
-- Total Distance: ${fleetData.vehicles.reduce((sum, v) => sum + v.km, 0).toLocaleString()} km
-- Average KM per Vehicle: ${Math.round(fleetData.vehicles.reduce((sum, v) => sum + v.km, 0) / fleetData.vehicles.length)}
-
-Provide helpful, actionable advice based on this fleet data. Be specific and practical in your recommendations.`
-                                    },
-                                    {
-                                        role: 'user',
-                                        content: message
-                                    }
-                                ],
-                                max_tokens: 300,
-                                temperature: 0.7
-                            })
-                        });
-                        
-                        if (retryResponse.ok) {
-                            const retryData = await retryResponse.json();
-                            if (retryData.choices && retryData.choices[0]) {
-                                const aiResponse = retryData.choices[0].message.content;
-                                addMessageToChat(aiResponse, 'ai');
-                                updateAIStatus('online', 'Connected to AI');
-                                return;
-                            }
-                        }
-                    } catch (retryError) {
-                        console.error('Retry failed:', retryError);
-                    }
-                }
                 
                 // Use fallback response system
                 const fallbackResponse = getFallbackResponse(message);
