@@ -1415,6 +1415,7 @@
                             id="sendButton"
                             class="ai-coach-send-premium text-white px-4 sm:px-6 py-2 sm:py-3 rounded-xl flex items-center space-x-1 sm:space-x-2 font-medium text-sm sm:text-base"
                             style="min-height: 40px;"
+                            type="button"
                         >
                             <i data-lucide="send" class="h-3 w-3 sm:h-4 sm:w-4"></i>
                             <span class="hidden sm:inline">Send</span>
@@ -2134,6 +2135,25 @@
             populateRecentReports();
             startAutoRefresh();
             updateLastUpdated();
+            
+            // Add event listener for send button
+            const sendButton = document.getElementById('sendButton');
+            if (sendButton) {
+                sendButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('Send button clicked');
+                    sendMessage();
+                });
+            }
+            
+            // Add event listener for input field
+            const chatInput = document.getElementById('chatInput');
+            if (chatInput) {
+                chatInput.addEventListener('keypress', function(e) {
+                    console.log('Input keypress event');
+                    handleChatKeyPress(e);
+                });
+            }
         });
 
         function initializeLucideIcons() {
@@ -3063,7 +3083,10 @@
         });
 
         function handleChatKeyPress(event) {
+            console.log('Key pressed:', event.key);
             if (event.key === 'Enter') {
+                console.log('Enter key pressed, calling sendMessage');
+                event.preventDefault();
                 sendMessage();
             }
         }
@@ -3075,11 +3098,22 @@
         }
 
         async function sendMessage() {
+            console.log('sendMessage called');
             const input = document.getElementById('chatInput');
             const sendButton = document.getElementById('sendButton');
-            const message = input.value.trim();
             
-            if (!message) return;
+            if (!input) {
+                console.error('Input field not found');
+                return;
+            }
+            
+            const message = input.value.trim();
+            console.log('Message:', message);
+            
+            if (!message) {
+                console.log('Empty message, returning');
+                return;
+            }
 
             // Disable input and button
             input.disabled = true;
@@ -3131,10 +3165,12 @@
                 updateAIStatus('offline', 'Offline mode - using local data');
             } finally {
                 // Re-enable input and button
+                console.log('Re-enabling input and button');
                 input.disabled = false;
                 sendButton.disabled = false;
                 sendButton.innerHTML = '<i data-lucide="send" class="h-4 w-4"></i><span>Send</span>';
                 input.focus();
+                console.log('Input re-enabled and focused');
                 
                 // Re-initialize Lucide icons
                 lucide.createIcons();
