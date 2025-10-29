@@ -3380,8 +3380,8 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
     <!-- Professional Footer -->
     <footer class="professional-footer">
         <div class="footer-container">
-            <div class="footer-content">
-                <!-- Brand & Navigation -->
+            <div class="footer-main">
+                <!-- Brand & Tagline -->
                 <div class="footer-brand">
                     <div class="footer-logo">
                         <i data-lucide="truck" class="footer-icon"></i>
@@ -3390,32 +3390,26 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
                     <p class="footer-tagline">Advanced Fleet Management Dashboard</p>
                 </div>
 
-                <!-- Quick Navigation -->
+                <!-- Navigation Links -->
                 <div class="footer-nav">
-                    <a href="#dashboard" onclick="showPage('dashboard')" class="nav-link">Dashboard</a>
-                    <a href="#map" onclick="showPage('map')" class="nav-link">Map</a>
-                    <a href="#analytics" onclick="showPage('analytics')" class="nav-link">Analytics</a>
-                    <a href="#maintenance" onclick="showPage('maintenance')" class="nav-link">Maintenance</a>
-                    <a href="#reports" onclick="showPage('reports')" class="nav-link">Reports</a>
+                    <a href="#dashboard" onclick="showPage('dashboard')">Dashboard</a>
+                    <a href="#map" onclick="showPage('map')">Map</a>
+                    <a href="#analytics" onclick="showPage('analytics')">Analytics</a>
+                    <a href="#maintenance" onclick="showPage('maintenance')">Maintenance</a>
+                    <a href="#reports" onclick="showPage('reports')">Reports</a>
                 </div>
 
-                <!-- Contact & Social -->
-                <div class="footer-contact">
-                    <div class="contact-item">
-                        <i data-lucide="mail"></i>
-                        <span>support@fleettrackpro.com</span>
-                    </div>
-                    <div class="social-links">
-                        <a href="#" class="social-link" title="LinkedIn">
-                            <i data-lucide="linkedin"></i>
-                        </a>
-                        <a href="#" class="social-link" title="GitHub">
-                            <i data-lucide="github"></i>
-                        </a>
-                        <a href="#" class="social-link" title="Twitter">
-                            <i data-lucide="twitter"></i>
-                        </a>
-                    </div>
+                <!-- Social Links -->
+                <div class="footer-social">
+                    <a href="#" class="social-link" title="LinkedIn">
+                        <i data-lucide="linkedin"></i>
+                    </a>
+                    <a href="#" class="social-link" title="GitHub">
+                        <i data-lucide="github"></i>
+                    </a>
+                    <a href="#" class="social-link" title="Twitter">
+                        <i data-lucide="twitter"></i>
+                    </a>
                 </div>
             </div>
 
@@ -3424,7 +3418,9 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
                 <p class="copyright">&copy; 2024 FleetTrack Pro. All rights reserved.</p>
                 <div class="legal-links">
                     <a href="#">Privacy</a>
+                    <span class="separator">•</span>
                     <a href="#">Terms</a>
+                    <span class="separator">•</span>
                     <a href="#">Support</a>
                 </div>
             </div>
@@ -3432,166 +3428,100 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
     </footer>
 
     <style>
-        /* Premium Footer Styles */
-        .premium-footer {
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        /* Professional Footer Styles */
+        .professional-footer {
+            background: #1e293b;
             color: #e2e8f0;
             margin-top: auto;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .premium-footer::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+            border-top: 1px solid rgba(59, 130, 246, 0.1);
         }
 
         .footer-container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 1rem;
+            padding: 0 1.5rem;
         }
 
         .footer-main {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1.5fr;
-            gap: 3rem;
-            padding: 4rem 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem 0;
+            gap: 2rem;
+            flex-wrap: wrap;
         }
 
-        .footer-section h4 {
-            color: #f8fafc;
-            font-size: 1.125rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-
-        .footer-section h4::after {
-            content: '';
-            position: absolute;
-            bottom: -0.5rem;
-            left: 0;
-            width: 2rem;
-            height: 2px;
-            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        .footer-brand {
+            flex: 1;
+            min-width: 200px;
         }
 
         .footer-logo {
             display: flex;
             align-items: center;
             gap: 0.75rem;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
 
         .footer-icon {
-            width: 2rem;
-            height: 2rem;
+            width: 1.5rem;
+            height: 1.5rem;
             color: #3b82f6;
         }
 
-        .footer-logo h3 {
+        .footer-title {
             color: #f8fafc;
-            font-size: 1.5rem;
+            font-size: 1.25rem;
             font-weight: 700;
+        }
+
+        .footer-tagline {
+            color: #94a3b8;
+            font-size: 0.875rem;
             margin: 0;
         }
 
-        .footer-description {
-            color: #94a3b8;
-            line-height: 1.6;
-            margin-bottom: 2rem;
+        .footer-nav {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-nav a {
+            color: #cbd5e1;
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s ease;
+        }
+
+        .footer-nav a:hover {
+            color: #3b82f6;
         }
 
         .footer-social {
             display: flex;
-            gap: 1rem;
+            gap: 0.75rem;
         }
 
         .social-link {
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.2);
-            border-radius: 0.5rem;
-            color: #3b82f6;
-            transition: all 0.3s ease;
+            width: 2rem;
+            height: 2rem;
+            color: #94a3b8;
+            transition: all 0.2s ease;
+            border-radius: 0.375rem;
         }
 
         .social-link:hover {
-            background: #3b82f6;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
-
-        .footer-links {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .footer-links li {
-            margin-bottom: 0.75rem;
-        }
-
-        .footer-links a {
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.3s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .footer-links a:hover {
             color: #3b82f6;
-        }
-
-        .footer-links a::before {
-            content: '→';
-            opacity: 0;
-            transition: all 0.3s ease;
-        }
-
-        .footer-links a:hover::before {
-            opacity: 1;
-            transform: translateX(-0.25rem);
-        }
-
-        .contact-info {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .contact-item {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            color: #94a3b8;
-        }
-
-        .contact-item i {
-            width: 1.25rem;
-            height: 1.25rem;
-            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
         }
 
         .footer-bottom {
             border-top: 1px solid rgba(59, 130, 246, 0.1);
-            padding: 2rem 0;
-        }
-
-        .footer-bottom-content {
+            padding: 1.5rem 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -3599,83 +3529,66 @@ ${fleetData.vehicles.map(v => `- ${v.name} (${v.plate}): ${v.status}, ${v.km.toL
             gap: 1rem;
         }
 
-        .footer-copyright p {
+        .copyright {
             color: #64748b;
+            font-size: 0.875rem;
             margin: 0;
         }
 
-        .footer-legal {
+        .legal-links {
             display: flex;
-            gap: 2rem;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
         }
 
-        .footer-legal a {
-            color: #64748b;
+        .legal-links a {
+            color: #94a3b8;
             text-decoration: none;
-            transition: color 0.3s ease;
+            font-size: 0.875rem;
+            transition: color 0.2s ease;
         }
 
-        .footer-legal a:hover {
+        .legal-links a:hover {
             color: #3b82f6;
         }
 
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .footer-main {
-                grid-template-columns: 1fr 1fr 1fr;
-                gap: 2rem;
-            }
+        .separator {
+            color: #475569;
+            font-size: 0.875rem;
         }
 
+        /* Responsive Design */
         @media (max-width: 768px) {
             .footer-main {
-                grid-template-columns: 1fr 1fr;
-                gap: 2rem;
-                padding: 3rem 0 1.5rem;
-            }
-
-            .footer-bottom-content {
                 flex-direction: column;
-                text-align: center;
+                align-items: flex-start;
+                padding: 1.5rem 0;
             }
 
-            .footer-legal {
-                gap: 1rem;
+            .footer-nav {
+                gap: 1.5rem;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                align-items: flex-start;
+                padding: 1rem 0;
             }
         }
 
         @media (max-width: 640px) {
-            .footer-main {
-                grid-template-columns: 1fr;
-                gap: 2rem;
-                padding: 2rem 0 1rem;
+            .footer-container {
+                padding: 0 1rem;
+            }
+
+            .footer-nav {
+                flex-direction: column;
+                gap: 0.75rem;
             }
 
             .footer-social {
-                justify-content: center;
-            }
-
-            .footer-legal {
-                flex-direction: column;
-                gap: 0.5rem;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .footer-container {
-                padding: 0 0.75rem;
-            }
-
-            .footer-main {
-                padding: 1.5rem 0 1rem;
-            }
-
-            .footer-section h4 {
-                font-size: 1rem;
-            }
-
-            .footer-logo h3 {
-                font-size: 1.25rem;
+                margin-top: 0.5rem;
             }
         }
     </style>
